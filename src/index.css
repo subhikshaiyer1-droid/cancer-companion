@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-main: #F8FAFC;
+    --text-primary: #1E293B;
+  }
+  
+  .dark {
+    --bg-main: #0F172A;
+    --text-primary: #F8FAFC;
+  }
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* Glassmorphism utility card styling */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-card {
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+/* High Contrast Mode overrides */
+.high-contrast {
+  filter: contrast(125%);
+}
+
+.high-contrast .glass-card {
+  border: 2px solid #000000 !important;
+  background: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+.dark.high-contrast .glass-card {
+  border: 2px solid #FFFFFF !important;
+  background: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+/* Text Size accessibility overrides */
+.text-large {
+  font-size: 1.125rem !important; /* 18px */
+}
+
+.text-large h1 { font-size: 2.25rem !important; }
+.text-large h2 { font-size: 1.75rem !important; }
+.text-large h3 { font-size: 1.35rem !important; }
+.text-large p, .text-large span, .text-large button { font-size: 1.125rem !important; }
+
+/* Custom Calm Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+
+.dark ::webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
