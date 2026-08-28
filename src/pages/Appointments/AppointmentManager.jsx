@@ -1,58 +1,98 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../lib/supabase';
 import { Calendar as CalendarIcon, Plus, MapPin, User, Clock, FileText, CheckCircle } from 'lucide-react';
 
 export const AppointmentManager = () => {
+  const { user } = useAuth();
   const { addToast } = useTheme();
 
   const [appointments, setAppointments] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
   const [showAddModal, setShowAddModal] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     title: '',
     doctor: '',
     hospital: '',
-    date: '2026-08-15',
+    date: new Date().toISOString().split('T')[0],
     time: '10:00 AM',
     notes: ''
   });
 
   useEffect(() => {
-    fetch('/api/appointments')
-      .then(res => res.json())
-      .then(data => setAppointments(data))
-      .catch(() => {
-        setAppointments([
-          { id: 'app-1', title: 'Oncology Progress Consultation', doctor: 'Dr. Sarah Lin', hospital: 'St. Jude Cancer Center', date: '2026-08-08', time: '10:30 AM', notes: 'Review CBC blood count results and discuss chemo cycle 3.' },
-          { id: 'app-2', title: 'Chemotherapy Session #3', doctor: 'Nurse Infusion Team B', hospital: 'Infusion Pavilion Suite 4', date: '2026-08-12', time: '09:00 AM', notes: 'Arrive 30 mins early for hydration pre-medication.' },
-          { id: 'app-3', title: 'Clinical Nutritionist Consultation', doctor: 'Elena Rostova, RD', hospital: 'Wellness Center Room 204', date: '2026-08-18', time: '02:00 PM', notes: 'Review high-protein dietary plan.' }
-        ]);
-      });
-  }, []);
+    if (!user) return;
+    loadAppointments();
+  }, [user]);
 
-  const handleSchedule = (e) => {
+  const loadAppointments = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setAppointments(data || []);
+    } catch (err) {
+      console.error('Error loading appointments:', err);
+      addToast('Error', 'Could not load appointments', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSchedule = async (e) => {
     e.preventDefault();
     if (!formData.title || !formData.doctor) return;
 
-    const newAppt = {
-      id: 'app-' + Date.now(),
-      ...formData
-    };
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert([{
+          user_id: user.id,
+          title: formData.title,
+          doctor: formData.doctor,
+          hospital: formData.hospital,
+          date: formData.date,
+          time: formData.time,
+          notes: formData.notes
+        }])
+        .select();
 
-    setAppointments(prev => [...prev, newAppt]);
-    setShowAddModal(false);
-    addToast('Appointment Scheduled', `Added ${newAppt.title} with ${newAppt.doctor}!`, 'success');
+      if (error) throw error;
 
-    fetch('/api/appointments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newAppt)
-    }).catch(() => {});
+      setAppointments(prev => [...prev, data[0]].sort((a, b) => new Date(a.date) - new Date(b.date)));
+      setShowAddModal(false);
+      setFormData({
+        title: '',
+        doctor: '',
+        hospital: '',
+        date: new Date().toISOString().split('T')[0],
+        time: '10:00 AM',
+        notes: ''
+      });
+      addToast('Appointment Scheduled', `Added ${data[0].title} with ${data[0].doctor}!`, 'success');
+    } catch (err) {
+      console.error('Error scheduling appointment:', err);
+      addToast('Error', 'Could not schedule appointment', 'error');
+    }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -97,7 +137,7 @@ export const AppointmentManager = () => {
       {/* List View */}
       {viewMode === 'list' ? (
         <div className="space-y-4">
-          {appointments.map((appt) => (
+          {appointments.length > 0 ? appointments.map((appt) => (
             <div
               key={appt.id}
               className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel hover:shadow-pastelHover transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
@@ -136,12 +176,20 @@ export const AppointmentManager = () => {
                 </button>
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="text-center py-12 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+              <CalendarIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No Appointments Scheduled</h3>
+              <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+                You haven't added any upcoming appointments.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         /* Calendar View Simulator */
         <div className="p-6 rounded-3xl glass-card shadow-pastel">
-          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4">August 2026 Treatment Calendar</h3>
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4">Treatment Calendar</h3>
           <div className="grid grid-cols-7 gap-2 text-center text-xs">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
               <div key={d} className="font-bold text-slate-400 py-1">{d}</div>
@@ -149,7 +197,8 @@ export const AppointmentManager = () => {
 
             {Array.from({ length: 31 }).map((_, i) => {
               const dayNum = i + 1;
-              const dateStr = `2026-08-${dayNum < 10 ? '0' + dayNum : dayNum}`;
+              const currentMonth = new Date().toISOString().split('-').slice(0, 2).join('-');
+              const dateStr = `${currentMonth}-${dayNum < 10 ? '0' + dayNum : dayNum}`;
               const hasAppt = appointments.find(a => a.date === dateStr);
 
               return (
@@ -165,7 +214,7 @@ export const AppointmentManager = () => {
                 >
                   <span className="text-[11px] text-slate-500">{dayNum}</span>
                   {hasAppt && (
-                    <div className="p-1 rounded-lg bg-sky-600 text-white text-[9px] truncate">
+                    <div className="p-1 rounded-lg bg-sky-600 text-white text-[9px] truncate" title={hasAppt.title}>
                       {hasAppt.title}
                     </div>
                   )}

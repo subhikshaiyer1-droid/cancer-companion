@@ -1,206 +1,121 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // No automatic demo login
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('cc_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  // No automatic demo token
-  const [token, setToken] = useState(() => {
-    return localStorage.getItem('cc_token') || null;
-  });
-
-  // Save user to localStorage
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('cc_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('cc_user');
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen for changes on auth state (logged in, signed out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error);
+      }
+
+      setProfile(data || null); // null if profile not found (needs onboarding)
+    } catch (err) {
+      console.error('Unexpected error fetching profile:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  };
 
-  // Save token to localStorage
-  useEffect(() => {
-    if (token) {
-      localStorage.setItem('cc_token', token);
-    } else {
-      localStorage.removeItem('cc_token');
-    }
-  }, [token]);
-
-
-  // LOGIN
   const login = async (email, password) => {
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email,
-          password
-        })
-      });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid email or password');
-      }
-
-      setUser(data.user);
-      setToken(data.token);
-
-      return {
-        success: true
-      };
-
-    } catch (err) {
-
-      /*
-        DEMO LOGIN FALLBACK
-
-        Since your backend may not be deployed yet,
-        this allows the entered user information
-        to create a session instead of automatically
-        logging in as Eleanor.
-      */
-
-      if (!email || !password) {
-        throw new Error('Please enter your email and password');
-      }
-
-      const isAdmin = email.toLowerCase().includes('admin');
-
-      const loggedInUser = {
-        id: 'usr-' + Date.now(),
-        name: email.split('@')[0],
-        email: email,
-        role: isAdmin ? 'admin' : 'patient',
-        diagnosis: isAdmin ? '' : 'Cancer Care Patient'
-      };
-
-      setUser(loggedInUser);
-
-      setToken(
-        isAdmin
-          ? 'demo-admin-token'
-          : 'demo-patient-token'
-      );
-
-      return {
-        success: true
-      };
+    if (error) {
+      throw new Error(error.message);
     }
+    return data;
   };
 
-
-  // REGISTER
   const register = async (userData) => {
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
-      });
+    const { email, password } = userData;
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Registration failed');
-      }
-
-      setUser(data.user);
-      setToken(data.token);
-
-      return {
-        success: true
-      };
-
-    } catch (err) {
-
-      /*
-        DEMO REGISTRATION FALLBACK
-
-        Creates a user using the information
-        actually entered in the registration form.
-      */
-
-      if (
-        !userData.name ||
-        !userData.email ||
-        !userData.password
-      ) {
-        throw new Error(
-          'Please fill in all required fields'
-        );
-      }
-
-      const newUser = {
-        id: 'usr-' + Date.now(),
-        name: userData.name,
-        email: userData.email,
-        role: 'patient',
-        diagnosis: userData.diagnosis || ''
-      };
-
-      setUser(newUser);
-
-      setToken('demo-patient-token');
-
-      return {
-        success: true
-      };
+    if (error) {
+      throw new Error(error.message);
     }
+    return data;
   };
 
-
-  // LOGOUT
-  const logout = () => {
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error);
+    }
     setUser(null);
-    setToken(null);
-
-    localStorage.removeItem('cc_user');
-    localStorage.removeItem('cc_token');
+    setProfile(null);
   };
 
-
-  // UPDATE PROFILE
   const updateProfile = (updatedFields) => {
-    setUser((previousUser) => ({
-      ...previousUser,
+    setProfile((prev) => ({
+      ...prev,
       ...updatedFields
     }));
   };
 
-
+  // We consider the user authenticated if `user` object exists.
+  // We can consider them "fully onboarded" if `profile` object exists.
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
+        profile,
+        loading,
         login,
         register,
         logout,
         updateProfile,
-
-        isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin'
+        isAuthenticated: Boolean(user),
+        hasCompletedOnboarding: Boolean(profile)
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
-
 
 export const useAuth = () => {
   return useContext(AuthContext);

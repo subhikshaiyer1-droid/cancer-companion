@@ -5,11 +5,10 @@ import {
   Heart,
   Lock,
   Mail,
-  User,
-  Stethoscope,
   ArrowRight,
   X
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export const AuthModal = ({ isOpen, onClose }) => {
   const { login, register } = useAuth();
@@ -18,10 +17,9 @@ export const AuthModal = ({ isOpen, onClose }) => {
   const [mode, setMode] = useState('login');
 
   const [formData, setFormData] = useState({
-    name: '',
     email: '',
     password: '',
-    diagnosis: ''
+    confirmPassword: ''
   });
 
   const [loading, setLoading] = useState(false);
@@ -31,48 +29,32 @@ export const AuthModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setErrorMsg('');
     setLoading(true);
 
     try {
       if (mode === 'login') {
         await login(formData.email, formData.password);
-
-        addToast(
-          'Welcome Back',
-          'Logged in successfully.',
-          'success'
-        );
-
+        addToast('Welcome Back', 'Logged in successfully.', 'success');
         onClose();
       } else if (mode === 'register') {
-        await register(formData);
-
-        addToast(
-          'Registration Complete',
-          'Your account has been created successfully.',
-          'success'
-        );
-
+        if (formData.password !== formData.confirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+        await register({ email: formData.email, password: formData.password });
+        addToast('Registration Complete', 'Your account has been created.', 'success');
         onClose();
       } else if (mode === 'forgot') {
         if (!formData.email) {
           throw new Error('Please enter your email address.');
         }
-
-        addToast(
-          'Reset Request Sent',
-          `Password reset instructions sent to ${formData.email}`,
-          'info'
-        );
-
+        const { error } = await supabase.auth.resetPasswordForEmail(formData.email);
+        if (error) throw error;
+        addToast('Reset Request Sent', `Password reset instructions sent to ${formData.email}`, 'info');
         setMode('login');
       }
     } catch (err) {
-      setErrorMsg(
-        err.message || 'Something went wrong. Please try again.'
-      );
+      setErrorMsg(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -99,22 +81,12 @@ export const AuthModal = ({ isOpen, onClose }) => {
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-400 via-indigo-400 to-purple-400 flex items-center justify-center text-white shadow-md">
             <Heart className="w-5 h-5 fill-white" />
           </div>
-
           <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
-              {mode === 'login'
-                ? 'Patient Sign In'
-                : mode === 'register'
-                  ? 'Join Cancer Companion'
-                  : 'Reset Password'}
+              {mode === 'login' ? 'Patient Sign In' : mode === 'register' ? 'Join Cancer Companion' : 'Reset Password'}
             </h2>
-
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {mode === 'login'
-                ? 'Enter your details to access your dashboard'
-                : mode === 'register'
-                  ? 'Create an account to begin your journey'
-                  : 'Enter your email to request a password reset'}
+              {mode === 'login' ? 'Enter your details to access your dashboard' : mode === 'register' ? 'Create an account to begin your journey' : 'Enter your email to request a password reset'}
             </p>
           </div>
         </div>
@@ -126,52 +98,18 @@ export const AuthModal = ({ isOpen, onClose }) => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
-          {mode === 'register' && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Full Name
-              </label>
-
-              <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter your full name"
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      name: e.target.value
-                    })
-                  }
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-            </div>
-          )}
-
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
               Email Address
             </label>
-
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-
               <input
                 type="email"
                 required
                 placeholder="patient@example.com"
                 value={formData.email}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    email: e.target.value
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
@@ -182,21 +120,14 @@ export const AuthModal = ({ isOpen, onClose }) => {
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Password
               </label>
-
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-
                 <input
                   type="password"
                   required
                   placeholder="Enter your password"
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      password: e.target.value
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -206,22 +137,16 @@ export const AuthModal = ({ isOpen, onClose }) => {
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Current Diagnosis / Stage (Optional)
+                Confirm Password
               </label>
-
               <div className="relative">
-                <Stethoscope className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
-                  type="text"
-                  placeholder="e.g. Breast Cancer Stage II"
-                  value={formData.diagnosis}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      diagnosis: e.target.value
-                    })
-                  }
+                  type="password"
+                  required
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -233,14 +158,7 @@ export const AuthModal = ({ isOpen, onClose }) => {
             disabled={loading}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
           >
-            {loading
-              ? 'Processing...'
-              : mode === 'login'
-                ? 'Sign In'
-                : mode === 'register'
-                  ? 'Create Account'
-                  : 'Send Recovery Email'}
-
+            {loading ? 'Processing...' : mode === 'login' ? 'Sign In' : mode === 'register' ? 'Create Account' : 'Send Recovery Email'}
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
@@ -248,33 +166,19 @@ export const AuthModal = ({ isOpen, onClose }) => {
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 text-center text-xs">
           {mode === 'login' ? (
             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-              <button
-                type="button"
-                onClick={() => changeMode('register')}
-                className="hover:text-sky-600 font-semibold"
-              >
+              <button type="button" onClick={() => changeMode('register')} className="hover:text-sky-600 font-semibold">
                 New Patient? Register
               </button>
-
-              <button
-                type="button"
-                onClick={() => changeMode('forgot')}
-                className="hover:text-sky-600 font-semibold"
-              >
+              <button type="button" onClick={() => changeMode('forgot')} className="hover:text-sky-600 font-semibold">
                 Forgot Password?
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => changeMode('login')}
-              className="text-sky-600 font-semibold hover:underline"
-            >
+            <button type="button" onClick={() => changeMode('login')} className="text-sky-600 font-semibold hover:underline">
               Already have an account? Sign In
             </button>
           )}
         </div>
-
       </div>
     </div>
   );

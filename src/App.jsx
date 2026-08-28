@@ -20,6 +20,7 @@ import { EmergencyContacts } from './pages/Emergency/EmergencyContacts';
 import { CommunitySupport } from './pages/Community/CommunitySupport';
 import { AdminPanel } from './pages/Admin/AdminPanel';
 import { SettingsPage } from './pages/Settings/SettingsPage';
+import { Onboarding } from './pages/Onboarding/Onboarding';
 
 import {
   Heart,
@@ -253,7 +254,7 @@ function WelcomePage({ onOpenAuth }) {
 
 function AppContent() {
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, hasCompletedOnboarding, loading } = useAuth();
 
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -313,34 +314,43 @@ function AppContent() {
   };
 
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+      </div>
+    );
+  }
+
   /* USER NOT LOGGED IN */
-
   if (!isAuthenticated) {
-
     return (
       <>
         <WelcomePage
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
-
         <AuthModal
           isOpen={isAuthModalOpen}
           onClose={() => setIsAuthModalOpen(false)}
         />
-
         <ToastContainer />
       </>
     );
-
   }
 
+  /* USER LOGGED IN BUT NOT ONBOARDED */
+  if (isAuthenticated && !hasCompletedOnboarding) {
+    return (
+      <>
+        <Onboarding />
+        <ToastContainer />
+      </>
+    );
+  }
 
-  /* USER LOGGED IN */
-
+  /* USER LOGGED IN AND ONBOARDED (DASHBOARD) */
   return (
-
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
-
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -348,59 +358,30 @@ function AppContent() {
         setIsOpen={setIsSidebarOpen}
       />
 
-
       <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
-
         <Header
-          onToggleSidebar={() =>
-            setIsSidebarOpen(!isSidebarOpen)
-          }
-
+          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           setActiveTab={setActiveTab}
-
-          onOpenAuth={() =>
-            setIsAuthModalOpen(true)
-          }
+          onOpenAuth={() => setIsAuthModalOpen(true)}
         />
 
-
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-
           {renderTabContent()}
-
         </main>
-
       </div>
 
-
       <ToastContainer />
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-      />
-
     </div>
-
   );
-
 }
 
 
 export default function App() {
-
   return (
-
     <AuthProvider>
-
       <ThemeProvider>
-
         <AppContent />
-
       </ThemeProvider>
-
     </AuthProvider>
-
   );
-
 }
