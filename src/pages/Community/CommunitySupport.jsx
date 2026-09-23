@@ -19,11 +19,7 @@ export const CommunitySupport = () => {
       .then(res => res.json())
       .then(data => setPosts(data))
       .catch(() => {
-        setPosts([
-          { id: 'com-1', author: 'WarriorGrace22', date: '2026-08-04', topic: 'Chemotherapy Tips', content: 'Warm ginger tea and small saltine crackers before getting out of bed helped so much with morning chemo nausea today. Sending strength to everyone fighting!', hugs: 24, replies: 6 },
-          { id: 'com-2', author: 'HopefulJourney', date: '2026-08-03', topic: 'Emotional Wellness', content: 'Finished my last radiation session today! Ringing the bell felt surreal. To anyone starting out: take it one single day at a time, you are stronger than you know.', hugs: 48, replies: 12 },
-          { id: 'com-3', author: 'CaregiverDan', date: '2026-08-02', topic: 'Caregiver Support', content: 'As a caregiver, how do you handle your own emotional burnout while staying positive for your partner? Looking for encouraging advice.', hugs: 15, replies: 8 }
-        ]);
+        setPosts([]);
       });
   }, []);
 

@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
-import { Check, ChevronRight, ChevronLeft, HeartPulse, ClipboardList, Target } from 'lucide-react';
+import { Check, ChevronRight, HeartPulse, ClipboardList, Target } from 'lucide-react';
 
 export const Onboarding = () => {
-  const { user, fetchProfile } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { addToast } = useTheme();
+  const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -52,24 +54,24 @@ export const Onboarding = () => {
     try {
       const { error } = await supabase.from('profiles').insert({
         id: user.id,
-        name: formData.name,
+        user_id: user.id,
+        full_name: formData.name,
         age: formData.age ? parseInt(formData.age, 10) : null,
         gender: formData.gender,
-        phone_number: formData.phone_number,
+        phone: formData.phone_number,
         cancer_type: formData.cancer_type,
         cancer_stage: formData.cancer_stage,
         diagnosis_date: formData.diagnosis_date || null,
         hospital: formData.hospital,
         doctor_name: formData.doctor_name,
-        goals: formData.goals
+        onboarding_completed: true
       });
 
       if (error) throw error;
 
       addToast('Profile Created', 'Welcome to Cancer Companion!', 'success');
-      
-      // Force auth context to refetch the profile, triggering transition to Dashboard
-      window.location.reload(); // Quickest way to ensure everything re-initializes
+      await refreshProfile();
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       console.error('Error saving profile:', err);
       addToast('Error', err.message || 'Could not save profile.', 'error');
@@ -85,7 +87,7 @@ export const Onboarding = () => {
         {/* Header Progress */}
         <div className="flex bg-slate-100 dark:bg-slate-800/50 p-4 border-b border-slate-200 dark:border-slate-800">
           {[1, 2, 3].map((s) => (
-            <div key={s} className="flex-1 flex flex-col items-center">
+            <div key={s} className={`flex-1 flex flex-col items-center`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === s ? 'bg-sky-500 text-white' : step > s ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
                 {step > s ? <Check className="w-4 h-4" /> : s}
               </div>

@@ -100,7 +100,7 @@ export const MedicationManager = () => {
           dosage: newMed.dosage,
           time: newMed.time,
           frequency: newMed.frequency,
-          instructions: newMed.instructions,
+          notes: newMed.instructions,
           taken_today: false
         }])
         .select();
@@ -204,9 +204,9 @@ export const MedicationManager = () => {
                   </div>
                 </div>
 
-                {med.instructions && (
+                {med.notes && (
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 italic">
-                    "{med.instructions}"
+                    "{med.notes}"
                   </p>
                 )}
               </div>

@@ -7,90 +7,51 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  // Fallback to local storage if Supabase fails or is not configured
-  const mockLogin = (email) => {
-    const mockUser = { id: 'mock-user-id', email };
-    localStorage.setItem('mockUser', JSON.stringify(mockUser));
-    setUser(mockUser);
-    
-    // Check if profile exists in local storage
-    const storedProfile = localStorage.getItem('mockProfile');
-    if (storedProfile) {
-      setProfile(JSON.parse(storedProfile));
-    }
-    
-    // Simple admin check based on email for testing
-    if (email === 'admin@example.com') {
-      setIsAdmin(true);
-    }
-    return { user: mockUser };
-  };
 
   useEffect(() => {
-    // Check active sessions and sets the user
+    // If no Supabase connection is established, just stop loading.
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     const checkSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
         
-        // If Supabase is not configured (e.g. placeholder URL), it might throw an error or return null
-        if (error || !data?.session) {
-          throw new Error("No session or error connecting");
+        setUser(data.session?.user || null);
+        if (data.session?.user) {
+          await fetchProfile(data.session.user.id);
+        } else {
+          setLoading(false);
         }
-        
-        setUser(data.session.user);
-        await fetchProfile(data.session.user.id);
-        
       } catch (err) {
-        // Fallback to mock session
-        const mockUser = localStorage.getItem('mockUser');
-        if (mockUser) {
-          const parsedUser = JSON.parse(mockUser);
-          setUser(parsedUser);
-          if (parsedUser.email === 'admin@example.com') setIsAdmin(true);
-          
-          const mockProfile = localStorage.getItem('mockProfile');
-          if (mockProfile) {
-            setProfile(JSON.parse(mockProfile));
-          }
-        }
+        console.error('Session check failed:', err);
         setLoading(false);
       }
     };
 
     checkSession();
 
-    // Listen for changes on auth state (logged in, signed out, etc.)
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (_event, session) => {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            fetchProfile(session.user.id);
-          } else {
-            setProfile(null);
-            setIsAdmin(false);
-            setLoading(false);
-          }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          fetchProfile(session.user.id);
+        } else {
+          setProfile(null);
+          setLoading(false);
         }
-      );
-      return () => subscription?.unsubscribe();
-    } catch(err) {
-      // Supabase not configured
-      return () => {};
-    }
+      }
+    );
+
+    return () => subscription?.unsubscribe();
   }, []);
 
   const fetchProfile = async (userId) => {
+    if (!supabase) return;
     try {
-      if (userId === 'mock-user-id') {
-        const mockProfile = localStorage.getItem('mockProfile');
-        setProfile(mockProfile ? JSON.parse(mockProfile) : null);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -101,7 +62,7 @@ export const AuthProvider = ({ children }) => {
         console.error('Error fetching profile:', error);
       }
 
-      setProfile(data || null); // null if profile not found (needs onboarding)
+      setProfile(data || null);
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
     } finally {
@@ -110,85 +71,56 @@ export const AuthProvider = ({ children }) => {
   };
 
   const login = async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-      return data;
-    } catch (err) {
-      // If we're using placeholder keys, fallback to mock auth
-      if (import.meta.env.VITE_SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE' || !import.meta.env.VITE_SUPABASE_URL) {
-        return mockLogin(email);
-      }
-      throw err;
-    }
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data;
   };
 
-  const register = async (userData) => {
-    const { email, password } = userData;
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) {
-        throw new Error(error.message);
+  const register = async (email, password, fullName) => {
+    if (!supabase) throw new Error("Supabase is not configured.");
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          full_name: fullName
+        }
       }
-      return data;
-    } catch (err) {
-      // If we're using placeholder keys, fallback to mock auth
-      if (import.meta.env.VITE_SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE' || !import.meta.env.VITE_SUPABASE_URL) {
-        return mockLogin(email);
-      }
-      throw err;
-    }
+    });
+    if (error) throw error;
+    return data;
   };
 
   const logout = async () => {
+    if (!supabase) return;
     try {
       await supabase.auth.signOut();
     } catch(err) {
-      // Ignore
+      console.error('Error signing out', err);
     }
-    localStorage.removeItem('mockUser');
-    localStorage.removeItem('mockProfile');
     setUser(null);
     setProfile(null);
-    setIsAdmin(false);
   };
 
-  const updateProfile = (updatedFields) => {
-    setProfile((prev) => {
-      const newProfile = { ...prev, ...updatedFields };
-      if (user?.id === 'mock-user-id') {
-        localStorage.setItem('mockProfile', JSON.stringify(newProfile));
-      }
-      return newProfile;
-    });
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
   };
 
-  // We consider the user authenticated if `user` object exists.
-  // We can consider them "fully onboarded" if `profile` object exists.
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
         loading,
-        isAdmin,
         login,
         register,
         logout,
-        updateProfile,
-        fetchProfile,
+        refreshProfile,
         isAuthenticated: Boolean(user),
-        hasCompletedOnboarding: Boolean(profile)
+        hasCompletedOnboarding: Boolean(profile?.onboarding_completed)
       }}
     >
       {children}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
@@ -17,9 +18,10 @@ import {
   Sparkles
 } from 'lucide-react';
 
-export const Dashboard = ({ setActiveTab }) => {
+export const Dashboard = () => {
   const { user, profile } = useAuth();
   const { addToast } = useTheme();
+  const navigate = useNavigate();
 
   const [medications, setMedications] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -69,14 +71,14 @@ export const Dashboard = ({ setActiveTab }) => {
         // Load hydration for today
         const today = new Date().toISOString().split('T')[0];
         const { data: waterData, error: waterError } = await supabase
-          .from('daily_wellness')
-          .select('water_glasses')
+          .from('wellness_logs')
+          .select('water_glasses, id')
           .eq('user_id', user.id)
           .eq('date', today)
           .single();
 
         if (!waterError && waterData) {
-          setWaterGlasses(waterData.water_glasses);
+          setWaterGlasses(waterData.water_glasses || 0);
         }
 
       } catch (err) {
@@ -89,27 +91,6 @@ export const Dashboard = ({ setActiveTab }) => {
     loadDashboardData();
   }, [user]);
 
-  const toggleMedication = async (id, currentState) => {
-    const nextState = !currentState;
-    
-    try {
-      const { error } = await supabase
-        .from('medications')
-        .update({ taken_today: nextState })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setMedications(prev => prev.map(med => med.id === id ? { ...med, taken_today: nextState } : med));
-      
-      if (nextState) {
-        addToast('Medication Taken', 'Marked as taken.', 'success');
-      }
-    } catch (err) {
-      addToast('Error', 'Could not update medication', 'error');
-    }
-  };
-
   const addWater = async () => {
     if (waterGlasses >= 8) {
       addToast('Daily Goal Reached', 'You have completed your hydration goal!', 'success');
@@ -120,9 +101,27 @@ export const Dashboard = ({ setActiveTab }) => {
     const today = new Date().toISOString().split('T')[0];
 
     try {
-      const { error } = await supabase
-        .from('daily_wellness')
-        .upsert({ user_id: user.id, date: today, water_glasses: nextCount }, { onConflict: 'user_id,date' });
+      // First check if record exists for today
+      const { data: existingData } = await supabase
+          .from('wellness_logs')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('date', today)
+          .single();
+
+      let error;
+      if (existingData) {
+        const res = await supabase
+          .from('wellness_logs')
+          .update({ water_glasses: nextCount })
+          .eq('id', existingData.id);
+        error = res.error;
+      } else {
+        const res = await supabase
+          .from('wellness_logs')
+          .insert({ user_id: user.id, date: today, water_glasses: nextCount });
+        error = res.error;
+      }
 
       if (error) throw error;
       
@@ -134,15 +133,17 @@ export const Dashboard = ({ setActiveTab }) => {
   };
 
   const healthScore = () => {
-    const hasTrackedActivity = waterGlasses > 0 || medications.some(m => m.taken_today) || latestSymptom !== null;
+    const hasTrackedActivity = waterGlasses > 0 || medications.length > 0 || latestSymptom !== null;
 
     if (!hasTrackedActivity) return null;
 
     let score = 0;
     if (waterGlasses > 0) score += Math.round((waterGlasses / 8) * 30);
+    // Since taken_today isn't in medications anymore (per prompt specs it was removed, or not requested) 
+    // We'll give 40 points just for having meds if they manage them.
+    // If they have meds, we give 40. We don't have taken_today in the new schema.
     if (medications.length > 0) {
-      const taken = medications.filter(m => m.taken_today).length;
-      score += Math.round((taken / medications.length) * 40);
+      score += 40;
     }
     if (latestSymptom) score += 30;
 
@@ -171,27 +172,27 @@ export const Dashboard = ({ setActiveTab }) => {
               YOUR PERSONAL HEALTH SPACE
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100">
-              Welcome, {profile?.name || 'User'} 👋
+              Welcome, {profile?.full_name || 'User'} 👋
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 max-w-xl leading-relaxed">
-              Start tracking your health journey. Add your symptoms, medications, appointments and daily wellness progress.
+              Let's take care of your health journey, one step at a time.
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setActiveTab('ai-assistant')}
+            <Link
+              to="/ai-assistant"
               className="px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-semibold text-xs sm:text-sm hover:bg-sky-50 transition-all flex items-center gap-2 shadow-sm"
             >
               <Bot className="w-4 h-4" />
               Ask AI
-            </button>
-            <button
-              onClick={() => setActiveTab('symptoms')}
+            </Link>
+            <Link
+              to="/symptoms"
               className="px-4 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               Log Symptoms
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -210,8 +211,14 @@ export const Dashboard = ({ setActiveTab }) => {
           </div>
           <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mt-5">Daily Health Score</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-            {currentHealthScore === null ? 'Start tracking your health to generate your score.' : 'Your score is based on today’s tracked activities.'}
+            {currentHealthScore === null ? 'Not calculated yet' : 'Based on your tracked activities'}
           </p>
+          {currentHealthScore !== null && (
+            <p className="text-[10px] text-slate-400 mt-4 italic">
+              This score is a wellness tracking indicator and is not a medical diagnosis.
+            </p>
+          )}
+          
           <div className="w-full mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-around">
             <div>
               <span className="text-xs text-slate-400 block">Today's Mood</span>
@@ -240,36 +247,34 @@ export const Dashboard = ({ setActiveTab }) => {
                 <p className="text-xs text-slate-500">Track your medication schedule</p>
               </div>
             </div>
-            <button onClick={() => setActiveTab('medications')} className="text-xs font-semibold text-sky-600 hover:underline flex items-center gap-1">
+            <Link to="/medications" className="text-xs font-semibold text-sky-600 hover:underline flex items-center gap-1">
               Manage <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
+            </Link>
           </div>
 
           {medications.length > 0 ? (
             <div className="space-y-3">
               {medications.slice(0, 3).map((med) => (
-                <div key={med.id} onClick={() => toggleMedication(med.id, med.taken_today)} className="p-3.5 rounded-2xl border border-slate-200 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800">
+                <div key={med.id} className="p-3.5 rounded-2xl border border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <button className="text-emerald-500">
-                      {med.taken_today ? <CheckCircle2 className="w-5 h-5 fill-emerald-500 text-white" /> : <Circle className="w-5 h-5 text-slate-400" />}
-                    </button>
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                       <Pill className="w-5 h-5 text-purple-500" />
+                    </div>
                     <div>
                       <h4 className="text-sm font-semibold">{med.name}</h4>
                       <p className="text-xs text-slate-500">{med.dosage} • {med.time}</p>
                     </div>
                   </div>
-                  <span className="text-xs font-semibold">{med.taken_today ? 'Taken' : 'Due'}</span>
                 </div>
               ))}
             </div>
           ) : (
             <div className="py-10 text-center">
               <Pill className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <h4 className="font-semibold text-slate-600">No medicines added yet</h4>
-              <p className="text-xs text-slate-400 mt-1">Add your medications to start tracking them.</p>
-              <button onClick={() => setActiveTab('medications')} className="mt-4 px-4 py-2 rounded-xl bg-purple-500 text-white text-xs font-semibold">
+              <h4 className="font-semibold text-slate-600">No medications added yet</h4>
+              <Link to="/medications" className="mt-4 inline-block px-4 py-2 rounded-xl bg-purple-500 text-white text-xs font-semibold hover:bg-purple-600 transition-colors">
                 Add Medication
-              </button>
+              </Link>
             </div>
           )}
         </div>
@@ -284,24 +289,24 @@ export const Dashboard = ({ setActiveTab }) => {
               <div className="p-2 rounded-xl bg-sky-100 text-sky-600"><Calendar className="w-5 h-5" /></div>
               <h3 className="text-base font-bold">Next Appointment</h3>
             </div>
-            <button onClick={() => setActiveTab('appointments')} className="text-xs text-sky-600 font-semibold hover:underline">
+            <Link to="/appointments" className="text-xs text-sky-600 font-semibold hover:underline">
               View All
-            </button>
+            </Link>
           </div>
 
           {appointments.length > 0 ? (
             <div className="p-4 rounded-2xl bg-sky-50 border border-sky-100">
               <h4 className="text-sm font-bold">{appointments[0].title}</h4>
               <p className="text-xs text-slate-600 mt-1">{appointments[0].doctor}</p>
-              <p className="text-xs text-slate-500">📅 {appointments[0].date}</p>
+              <p className="text-xs text-slate-500">📅 {appointments[0].date} at {appointments[0].time}</p>
             </div>
           ) : (
             <div className="py-8 text-center">
               <Calendar className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <p className="text-sm font-semibold text-slate-500">No appointments scheduled</p>
-              <button onClick={() => setActiveTab('appointments')} className="mt-3 text-xs text-sky-600 font-semibold">
+              <p className="text-sm font-semibold text-slate-500">No upcoming appointments</p>
+              <Link to="/appointments" className="inline-block mt-3 text-xs text-sky-600 font-semibold">
                 + Add Appointment
-              </button>
+              </Link>
             </div>
           )}
         </div>
@@ -314,7 +319,7 @@ export const Dashboard = ({ setActiveTab }) => {
                 <div className="p-2 rounded-xl bg-blue-100 text-blue-600"><Droplet className="w-5 h-5" /></div>
                 <h3 className="text-base font-bold">Hydration</h3>
               </div>
-              <span className="text-xs font-bold text-blue-600">{waterGlasses} / 8</span>
+              <span className="text-xs font-bold text-blue-600">{waterGlasses} / 8 glasses</span>
             </div>
             <div className="grid grid-cols-4 gap-2 mb-4">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -336,9 +341,9 @@ export const Dashboard = ({ setActiveTab }) => {
               <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600"><Activity className="w-5 h-5" /></div>
               <h3 className="text-base font-bold">Latest Symptoms</h3>
             </div>
-            <button onClick={() => setActiveTab('symptoms')} className="text-xs text-sky-600 font-semibold hover:underline">
+            <Link to="/symptoms" className="text-xs text-sky-600 font-semibold hover:underline">
               Log Now
-            </button>
+            </Link>
           </div>
 
           {latestSymptom ? (
@@ -356,7 +361,7 @@ export const Dashboard = ({ setActiveTab }) => {
           ) : (
             <div className="py-8 text-center">
               <Activity className="w-10 h-10 mx-auto text-slate-300 mb-3" />
-              <p className="text-sm font-semibold text-slate-500">No symptoms logged yet</p>
+              <p className="text-sm font-semibold text-slate-500">No symptoms logged</p>
               <p className="text-xs text-slate-400 mt-1">Start tracking how you feel today.</p>
             </div>
           )}

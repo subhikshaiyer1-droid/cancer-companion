@@ -62,6 +62,7 @@ export const SymptomTracker = () => {
         .from('symptoms')
         .insert([{
           user_id: user.id,
+          date: new Date().toISOString().split('T')[0],
           fatigue: newLog.fatigue,
           nausea: newLog.nausea,
           pain: newLog.pain,

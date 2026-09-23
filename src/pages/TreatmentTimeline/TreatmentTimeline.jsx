@@ -10,14 +10,7 @@ export const TreatmentTimeline = () => {
       .then(res => res.json())
       .then(data => setTimeline(data))
       .catch(() => {
-        setTimeline([
-          { id: 'time-1', phase: 'Diagnosis', title: 'Biopsy Confirmation', date: '2026-05-10', description: 'Confirmed Stage II ER+/PR+ diagnosis with medical oncology team.', status: 'completed' },
-          { id: 'time-2', phase: 'Surgery', title: 'Lumpectomy Procedure', date: '2026-06-04', description: 'Successful surgical resection with clear pathological margins.', status: 'completed' },
-          { id: 'time-3', phase: 'Chemotherapy', title: 'Cycle 1 & 2 Infusions', date: '2026-07-02', description: 'Completed initial AC adjuvant chemotherapy infusions without major complications.', status: 'completed' },
-          { id: 'time-4', phase: 'Chemotherapy', title: 'Cycle 3 Infusion', date: '2026-08-12', description: 'Scheduled third chemotherapy session at Infusion Suite B.', status: 'upcoming' },
-          { id: 'time-5', phase: 'Radiation', title: 'Targeted Radiation Therapy', date: '2026-09-15', description: '5-week course of external beam radiation therapy planned.', status: 'planned' },
-          { id: 'time-6', phase: 'Recovery', title: 'Survivorship & Maintenance', date: '2026-11-01', description: 'Transition to endocrine maintenance therapy and rehabilitation milestone.', status: 'planned' }
-        ]);
+        setTimeline([]);
       });
   }, []);
 

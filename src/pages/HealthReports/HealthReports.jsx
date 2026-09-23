@@ -21,11 +21,7 @@ export const HealthReports = () => {
       .then(res => res.json())
       .then(data => setReports(data))
       .catch(() => {
-        setReports([
-          { id: 'rep-1', title: 'Complete Blood Count (CBC) Panel', category: 'Blood Work', date: '2026-07-28', doctor: 'Dr. Sarah Lin', fileType: 'pdf', fileSize: '1.2 MB', notes: 'Hemoglobin and WBC within expected range post-chemo cycle 2.' },
-          { id: 'rep-2', title: 'Chest & Torso PET/CT Scan Report', category: 'Scans & Imaging', date: '2026-06-20', doctor: 'Dr. Marcus Vance', fileType: 'image', fileSize: '4.8 MB', notes: 'Scans show good response with no distant metastasis.' },
-          { id: 'rep-3', title: 'Surgical Pathology Findings', category: 'Pathology', date: '2026-06-08', doctor: 'Dr. Sarah Lin', fileType: 'pdf', fileSize: '2.1 MB', notes: 'Clear resection margins confirmed.' }
-        ]);
+        setReports([]);
       });
   }, []);
 

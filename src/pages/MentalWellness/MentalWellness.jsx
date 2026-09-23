@@ -24,11 +24,7 @@ export const MentalWellness = () => {
   const [isMeditationRunning, setIsMeditationRunning] = useState(false);
 
   // Mood & Gratitude Journals
-  const [gratitudeList, setGratitudeList] = useState([
-    "Grateful for the morning sunlight through my window.",
-    "Thankful for my sister bringing fresh ginger tea.",
-    "Appreciating today's calm energy and good rest."
-  ]);
+  const [gratitudeList, setGratitudeList] = useState([]);
   const [newGratitude, setNewGratitude] = useState('');
 
   // Breathing Cycle effect

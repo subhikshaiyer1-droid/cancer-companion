@@ -22,12 +22,7 @@ export const EmergencyContacts = () => {
       .then(res => res.json())
       .then(data => setContacts(data))
       .catch(() => {
-        setContacts([
-          { id: 'con-1', name: 'Dr. Sarah Lin', role: 'Primary Oncologist', phone: '+1 (555) 019-2831', hospital: 'St. Jude Cancer Center', email: 'dr.lin@stjude-oncology.org' },
-          { id: 'con-2', name: 'Mark Vance', role: 'Primary Caregiver (Spouse)', phone: '+1 (555) 883-9201', email: 'mark.vance@example.com' },
-          { id: 'con-3', name: 'Oncology 24/7 Helpline', role: 'Triage Nurse Helpline', phone: '+1 (800) 555-CARE', hospital: 'St. Jude Emergency Desk' },
-          { id: 'con-4', name: 'St. Jude Hospital ER Desk', role: 'Hospital Emergency', phone: '911', address: '742 Evergreen Terrace, Medical District' }
-        ]);
+        setContacts([]);
       });
   }, []);
 
