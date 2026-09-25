@@ -18,7 +18,12 @@ export const ProtectedRoute = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // If they are logged in but haven't completed onboarding, force them to onboarding
+  // If user HAS completed onboarding and is trying to visit /onboarding, send to dashboard
+  if (hasCompletedOnboarding && location.pathname === '/onboarding') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If user has NOT completed onboarding and is trying to visit another route, send to onboarding
   if (!hasCompletedOnboarding && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }

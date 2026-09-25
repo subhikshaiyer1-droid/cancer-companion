@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +17,8 @@ import {
   Check
 } from 'lucide-react';
 
-export const Header = ({ onToggleSidebar, setActiveTab, onOpenAuth }) => {
+export const Header = ({ onToggleSidebar }) => {
+  const navigate = useNavigate();
   const {
     darkMode, setDarkMode,
     textSize, setTextSize,
@@ -41,7 +43,7 @@ export const Header = ({ onToggleSidebar, setActiveTab, onOpenAuth }) => {
   const triggerSos = () => {
     setShowSosModal(false);
     addToast('Emergency SOS Activated', 'Contacting Dr. Sarah Lin (+1 555-019-2831) and Oncology 24/7 Helpline.', 'warning');
-    setActiveTab('emergency');
+    navigate('/emergency');
   };
 
   return (
@@ -148,7 +150,7 @@ export const Header = ({ onToggleSidebar, setActiveTab, onOpenAuth }) => {
                 <button
                   onClick={() => {
                     setShowNotifications(false);
-                    setActiveTab('medications');
+                    navigate('/medications');
                   }}
                   className="w-full mt-2 py-2 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-xs font-semibold hover:bg-sky-100 transition-colors"
                 >

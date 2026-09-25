@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
@@ -19,27 +19,30 @@ import {
   Sparkles
 } from 'lucide-react';
 
-export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
-  const { user, isAdmin, logout } = useAuth();
+export const Sidebar = ({ isOpen, setIsOpen }) => {
+  const { user, profile, isAdmin, logout } = useAuth();
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'ai-assistant', label: 'AI Health Assistant', icon: Bot, badge: 'AI' },
-    { id: 'symptoms', label: 'Symptom Tracker', icon: Activity },
-    { id: 'medications', label: 'Medications', icon: Pill },
-    { id: 'appointments', label: 'Appointments', icon: Calendar },
-    { id: 'timeline', label: 'Treatment Timeline', icon: GitCommit },
-    { id: 'reports', label: 'Health Reports', icon: FileText },
-    { id: 'nutrition', label: 'Nutrition & Hydration', icon: Apple },
-    { id: 'wellness', label: 'Mental Wellness', icon: Heart },
-    { id: 'emergency', label: 'Emergency Contacts', icon: PhoneCall, highlight: true },
-    { id: 'community', label: 'Community Support', icon: Users },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'ai-assistant', path: '/ai-assistant', label: 'AI Health Assistant', icon: Bot, badge: 'AI' },
+    { id: 'symptoms', path: '/symptoms', label: 'Symptom Tracker', icon: Activity },
+    { id: 'medications', path: '/medications', label: 'Medications', icon: Pill },
+    { id: 'appointments', path: '/appointments', label: 'Appointments', icon: Calendar },
+    { id: 'timeline', path: '/timeline', label: 'Treatment Timeline', icon: GitCommit },
+    { id: 'reports', path: '/reports', label: 'Health Reports', icon: FileText },
+    { id: 'nutrition', path: '/nutrition', label: 'Nutrition & Hydration', icon: Apple },
+    { id: 'wellness', path: '/wellness', label: 'Mental Wellness', icon: Heart },
+    { id: 'emergency', path: '/emergency', label: 'Emergency Contacts', icon: PhoneCall, highlight: true },
+    { id: 'community', path: '/community', label: 'Community Support', icon: Users },
+    { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
   ];
 
   if (isAdmin) {
-    navItems.splice(navItems.length - 1, 0, { id: 'admin', label: 'Admin Panel', icon: ShieldCheck, badge: 'Admin' });
+    navItems.splice(navItems.length - 1, 0, { id: 'admin', path: '/admin', label: 'Admin Panel', icon: ShieldCheck, badge: 'Admin' });
   }
+
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Patient User';
+  const displayInfo = profile?.cancer_type ? `${profile.cancer_type}${profile.cancer_stage ? ` (${profile.cancer_stage})` : ''}` : 'Care Journey';
 
   return (
     <>
@@ -75,16 +78,13 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
           <nav className="space-y-1.5 flex-1">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
 
               return (
-                <button
+                <NavLink
                   key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsOpen(false);
-                  }}
-                  className={`
+                  to={item.path}
+                  onClick={() => setIsOpen(false)}
+                  className={({ isActive }) => `
                     w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-left
                     ${isActive
                       ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/60 shadow-sm font-semibold'
@@ -94,17 +94,21 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
                     }
                   `}
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400 dark:text-slate-500'}`} />
-                    <span className="truncate">{item.label}</span>
-                  </div>
+                  {({ isActive }) => (
+                    <>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-sky-600 dark:text-sky-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
 
-                  {item.badge && (
-                    <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
-                      {item.badge}
-                    </span>
+                      {item.badge && (
+                        <span className="text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300">
+                          {item.badge}
+                        </span>
+                      )}
+                    </>
                   )}
-                </button>
+                </NavLink>
               );
             })}
           </nav>
@@ -114,14 +118,14 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen }) => {
             <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-400 to-purple-500 flex items-center justify-center text-white font-bold text-sm">
-                  {user?.name ? user.name[0].toUpperCase() : 'P'}
+                  {displayName[0].toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">
-                    {user?.name || 'Patient User'}
+                    {displayName}
                   </p>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                    {user?.diagnosis || 'Treatment Journey'}
+                    {displayInfo}
                   </p>
                 </div>
               </div>

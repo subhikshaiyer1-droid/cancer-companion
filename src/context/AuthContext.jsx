@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchProfile = async (userId) => {
-    if (!supabase) return;
+    if (!supabase || !userId) return null;
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -63,8 +63,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       setProfile(data || null);
+      return data || null;
     } catch (err) {
       console.error('Unexpected error fetching profile:', err);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -101,12 +103,19 @@ export const AuthProvider = ({ children }) => {
     }
     setUser(null);
     setProfile(null);
+    setLoading(false);
   };
 
-  const refreshProfile = async () => {
-    if (user) {
-      await fetchProfile(user.id);
+  const refreshProfile = async (overrideUserId) => {
+    const targetUserId = overrideUserId || user?.id;
+    if (targetUserId) {
+      return await fetchProfile(targetUserId);
     }
+    return null;
+  };
+
+  const setProfileState = (newProfile) => {
+    setProfile(newProfile);
   };
 
   return (
@@ -119,6 +128,7 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         refreshProfile,
+        setProfileState,
         isAuthenticated: Boolean(user),
         hasCompletedOnboarding: Boolean(profile?.onboarding_completed)
       }}

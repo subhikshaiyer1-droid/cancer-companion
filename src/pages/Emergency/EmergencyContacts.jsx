@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { PhoneCall, Plus, UserCheck, ShieldAlert, Building, Mail, Phone, MessageSquare } from 'lucide-react';
 
 export const EmergencyContacts = () => {
+  const { profile } = useAuth();
   const { addToast } = useTheme();
 
   const [contacts, setContacts] = useState([]);
@@ -18,17 +19,24 @@ export const EmergencyContacts = () => {
   });
 
   useEffect(() => {
-    fetch('/api/contacts')
-      .then(res => res.json())
-      .then(data => setContacts(data))
-      .catch(() => {
-        setContacts([]);
+    const defaultList = [];
+    if (profile?.doctor_name) {
+      defaultList.push({
+        id: 'doc-1',
+        name: profile.doctor_name,
+        role: 'Primary Doctor',
+        hospital: profile.hospital || 'Medical Center',
+        phone: profile.phone || 'Emergency Helpline'
       });
-  }, []);
+    }
+    setContacts(defaultList);
+  }, [profile]);
 
   const handleCall = (name, phone) => {
     addToast('Initiating Call', `Dialing ${name} (${phone})...`, 'warning');
-    window.location.href = `tel:${phone}`;
+    if (phone && phone !== 'Emergency Helpline') {
+      window.location.href = `tel:${phone}`;
+    }
   };
 
   const handleAdd = (e) => {
@@ -43,12 +51,6 @@ export const EmergencyContacts = () => {
     setContacts(prev => [...prev, contactToAdd]);
     setShowAddModal(false);
     addToast('Contact Saved', `${contactToAdd.name} added to 1-tap emergency contacts.`, 'success');
-
-    fetch('/api/contacts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(contactToAdd)
-    }).catch(() => {});
   };
 
   return (

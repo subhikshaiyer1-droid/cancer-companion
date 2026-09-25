@@ -14,15 +14,6 @@ export const CommunitySupport = () => {
     content: ''
   });
 
-  useEffect(() => {
-    fetch('/api/community')
-      .then(res => res.json())
-      .then(data => setPosts(data))
-      .catch(() => {
-        setPosts([]);
-      });
-  }, []);
-
   const handleHug = (id) => {
     setPosts(prev => prev.map(p => {
       if (p.id === id) {
@@ -32,13 +23,11 @@ export const CommunitySupport = () => {
     }));
 
     addToast('Encouragement Sent', 'You sent a hug of support!', 'success');
-    fetch(`/api/community/${id}/hug`, { method: 'POST' }).catch(() => {});
   };
 
   const handleFlag = (id) => {
     setPosts(prev => prev.filter(p => p.id !== id));
     addToast('Content Flagged', 'Post reported for admin moderation review.', 'warning');
-    fetch(`/api/community/${id}/flag`, { method: 'POST' }).catch(() => {});
   };
 
   const handleCreatePost = (e) => {
@@ -59,12 +48,6 @@ export const CommunitySupport = () => {
     setShowPostModal(false);
     setNewPost({ topic: 'Chemotherapy Tips', content: '' });
     addToast('Post Published', 'Your anonymous post is live in the community forum.', 'success');
-
-    fetch('/api/community', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(postToAdd)
-    }).catch(() => {});
   };
 
   const topics = ['All', 'Chemotherapy Tips', 'Emotional Wellness', 'Caregiver Support', 'Nutrition & Appetite'];

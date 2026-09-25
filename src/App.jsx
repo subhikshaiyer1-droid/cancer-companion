@@ -24,6 +24,7 @@ import { HealthReports } from './pages/HealthReports/HealthReports';
 import { NutritionGuide } from './pages/Nutrition/NutritionGuide';
 import { MentalWellness } from './pages/MentalWellness/MentalWellness';
 import { EmergencyContacts } from './pages/Emergency/EmergencyContacts';
+import { CommunitySupport } from './pages/Community/CommunitySupport';
 import { SettingsPage } from './pages/Settings/SettingsPage';
 
 const AppLayout = () => {
@@ -62,11 +63,9 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
 
-            {/* Onboarding - Requires auth, but handles its own logic for completion */}
-            <Route path="/onboarding" element={<Onboarding />} />
-
-            {/* Protected Routes (Require Auth & Onboarding) */}
+            {/* Protected Routes (Require Auth) */}
             <Route element={<ProtectedRoute />}>
+              <Route path="/onboarding" element={<Onboarding />} />
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/ai-assistant" element={<AIAssistant />} />
@@ -78,6 +77,7 @@ export default function App() {
                 <Route path="/nutrition" element={<NutritionGuide />} />
                 <Route path="/wellness" element={<MentalWellness />} />
                 <Route path="/emergency" element={<EmergencyContacts />} />
+                <Route path="/community" element={<CommunitySupport />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Route>

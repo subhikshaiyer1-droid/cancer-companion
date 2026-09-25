@@ -39,22 +39,45 @@ export const AIAssistant = () => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const questionsMap = {
+    general: [
+      "What specific type and stage of cancer do I have?",
+      "What are the goals of my recommended treatment plan?",
+      "What are potential side effects, and how can we manage them at home?",
+      "Who should I call if I experience urgent symptoms outside clinic hours?"
+    ],
+    chemotherapy: [
+      "How many cycles of chemotherapy are planned?",
+      "What anti-nausea medications will be prescribed before infusion?",
+      "What signs of infection or fever should trigger an emergency call?",
+      "How will chemotherapy affect my energy levels and daily routine?"
+    ],
+    radiation: [
+      "How many total radiation sessions will I need?",
+      "What skin care precautions should I take on the targeted area?",
+      "Will radiation cause fatigue, and when is it most pronounced?",
+      "What long-term follow-up imaging will be required after radiation?"
+    ],
+    surgery: [
+      "What is the expected surgical procedure and hospital stay length?",
+      "What drains or surgical dressings will I have post-operation?",
+      "How soon can I resume normal physical activities?",
+      "When will the pathology report from the surgery be ready?"
+    ]
+  };
+
+  const termDict = {
+    neutropenia: "Neutropenia is a lower-than-normal level of neutrophils (a type of white blood cell) that help fight bacterial infections.",
+    biopsy: "A procedure to remove a small sample of tissue or cells so it can be examined under a microscope by a pathologist.",
+    portacath: "A small medical device implanted under the skin to make drawing blood or giving IV treatments and chemotherapy easier.",
+    remission: "A decrease in or disappearance of signs and symptoms of cancer. It can be partial or complete.",
+    oncologist: "A doctor who specializes in diagnosing and treating people with cancer.",
+    chemotherapy: "Treatment using anti-cancer drugs designed to destroy or slow the growth of rapidly dividing cells.",
+    radiation: "High-energy beams (like X-rays) used to destroy cancer cells and shrink tumors in specific targeted areas."
+  };
+
   useEffect(() => {
-    fetch('/api/ai/doctor-questions')
-      .then(res => res.json())
-      .then(data => {
-        if (data.questionsByPhase) {
-          setDoctorQuestions(data.questionsByPhase[doctorQuestionsCategory] || []);
-        }
-      })
-      .catch(() => {
-        setDoctorQuestions([
-          "What specific type and stage of cancer do I have?",
-          "What are the goals of my recommended treatment plan?",
-          "What are potential side effects, and how can we manage them at home?",
-          "Who should I call if I experience urgent symptoms outside clinic hours?"
-        ]);
-      });
+    setDoctorQuestions(questionsMap[doctorQuestionsCategory] || questionsMap.general);
   }, [doctorQuestionsCategory]);
 
   const handleSendMessage = async (e) => {
@@ -67,47 +90,37 @@ export const AIAssistant = () => {
     setInputText('');
     setLoading(true);
 
-    try {
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageToSend })
-      });
-      const data = await res.json();
+    setTimeout(() => {
+      let responseText = "I am here to support you in your health journey. Remember to rest, stay hydrated, track any new symptoms, and contact your care team for medical guidance.";
+      const lower = messageToSend.toLowerCase();
+
+      if (lower.includes('side effect') || lower.includes('nausea') || lower.includes('pain') || lower.includes('fatigue')) {
+        responseText = "Managing symptoms and side effects is vital. Keep track of when symptoms occur using the Symptom Tracker, rest as needed, stay hydrated, and reach out to your doctor if symptoms worsen or if you develop a fever.";
+      } else if (lower.includes('doctor') || lower.includes('appointment') || lower.includes('ask')) {
+        responseText = "Preparing questions before your doctor's appointment helps ensure you get the clarity you need. You can use the 'Questions to Ask Doctor' panel to pick relevant topics!";
+      } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
+        responseText = "Hello! How can I assist you with your health companion tracking or questions today?";
+      }
 
       const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: data.response,
-        disclaimer: data.disclaimer,
-        suggestedQuestions: data.suggestedQuestions,
+        text: responseText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setMessages(prev => [...prev, aiMsg]);
-    } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          sender: 'ai',
-          text: "I am currently running in offline mode, but I am here for you! Remember to stay hydrated, rest when tired, and reach out to your doctor if symptoms worsen.",
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-    } finally {
       setLoading(false);
-    }
+    }, 600);
   };
 
-  const explainTerm = async () => {
+  const explainTerm = () => {
     if (!medicalTermInput.trim()) return;
-    try {
-      const res = await fetch(`/api/ai/explain-term/${encodeURIComponent(medicalTermInput)}`);
-      const data = await res.json();
-      setTermDefinition(data.definition);
-    } catch (err) {
-      setTermDefinition("Could not fetch term definition. Please consult your medical team.");
+    const key = medicalTermInput.trim().toLowerCase();
+    if (termDict[key]) {
+      setTermDefinition(termDict[key]);
+    } else {
+      setTermDefinition(`${medicalTermInput}: Medical term relating to diagnosis or treatment. Please discuss with your primary oncologist for full details.`);
     }
   };
 

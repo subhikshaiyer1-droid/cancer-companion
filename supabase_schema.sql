@@ -16,6 +16,7 @@ create table public.profiles (
   diagnosis_date date,
   hospital text,
   doctor_name text,
+  goals text[],
   onboarding_completed boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null

@@ -16,15 +16,6 @@ export const HealthReports = () => {
     notes: ''
   });
 
-  useEffect(() => {
-    fetch('/api/reports')
-      .then(res => res.json())
-      .then(data => setReports(data))
-      .catch(() => {
-        setReports([]);
-      });
-  }, []);
-
   const categories = ['All', 'Blood Work', 'Scans & Imaging', 'Pathology', 'Prescriptions'];
 
   const filteredReports = selectedCategory === 'All'
@@ -46,12 +37,6 @@ export const HealthReports = () => {
     setReports(prev => [reportToAdd, ...prev]);
     setShowUploadModal(false);
     addToast('Report Uploaded', `${reportToAdd.title} saved securely under ${reportToAdd.category}.`, 'success');
-
-    fetch('/api/reports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(reportToAdd)
-    }).catch(() => {});
   };
 
   const simulateDownload = (title) => {
@@ -97,48 +82,58 @@ export const HealthReports = () => {
       </div>
 
       {/* Reports Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredReports.map((report) => (
-          <div
-            key={report.id}
-            className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel hover:shadow-pastelHover transition-all flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600">
-                  {report.fileType === 'image' ? <ImageIcon className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+      {filteredReports.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredReports.map((report) => (
+            <div
+              key={report.id}
+              className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel hover:shadow-pastelHover transition-all flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600">
+                    {report.fileType === 'image' ? <ImageIcon className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                  </div>
+                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {report.category}
+                  </span>
                 </div>
-                <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  {report.category}
-                </span>
+
+                <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">{report.title}</h3>
+                <p className="text-xs text-slate-500 mt-1">Provider: {report.doctor}</p>
+
+                {report.notes && (
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                    "{report.notes}"
+                  </p>
+                )}
               </div>
 
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">{report.title}</h3>
-              <p className="text-xs text-slate-500 mt-1">Provider: {report.doctor}</p>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                <span className="text-[11px] text-slate-400 font-medium">📅 {report.date} • {report.fileSize}</span>
 
-              {report.notes && (
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                  "{report.notes}"
-                </p>
-              )}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-medium">📅 {report.date} • {report.fileSize}</span>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => simulateDownload(report.title)}
-                  title="Download File"
-                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-sky-100 hover:text-sky-600 transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => simulateDownload(report.title)}
+                    title="Download File"
+                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-sky-100 hover:text-sky-600 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+          <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No Reports Uploaded</h3>
+          <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+            You haven't added any lab results or scans yet. Click "Upload Document" to store your records securely.
+          </p>
+        </div>
+      )}
 
       {/* Upload Modal */}
       {showUploadModal && (
