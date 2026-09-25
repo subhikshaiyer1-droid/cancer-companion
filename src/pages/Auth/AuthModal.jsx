@@ -29,6 +29,7 @@ export const AuthModal = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setErrorMsg('');
     setLoading(true);
 
@@ -41,7 +42,7 @@ export const AuthModal = ({ isOpen, onClose }) => {
         if (formData.password !== formData.confirmPassword) {
           throw new Error("Passwords do not match");
         }
-        await register({ email: formData.email, password: formData.password });
+        await register(formData.email, formData.password);
         addToast('Registration Complete', 'Your account has been created.', 'success');
         onClose();
       } else if (mode === 'forgot') {
@@ -54,7 +55,20 @@ export const AuthModal = ({ isOpen, onClose }) => {
         setMode('login');
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Something went wrong. Please try again.');
+      const msg = err?.message || err?.error_description || '';
+      const code = err?.code || '';
+      const status = err?.status;
+
+      const isRateLimited = status === 429 || code === 'over_email_send_rate_limit' || code === 'rate_limit' || msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('security purposes');
+      const isExisting = code === 'user_already_exists' || msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists');
+
+      if (isRateLimited) {
+        setErrorMsg('Supabase verification email rate limit reached. If you already signed up, please switch to Sign In.');
+      } else if (isExisting) {
+        setErrorMsg('An account with this email address already exists. Please switch to Sign In or Reset Password.');
+      } else {
+        setErrorMsg(msg || 'Something went wrong. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

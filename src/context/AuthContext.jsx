@@ -79,8 +79,18 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const register = async (email, password, fullName) => {
+  const register = async (emailOrObj, passwordArg, fullNameArg) => {
     if (!supabase) throw new Error("Supabase is not configured.");
+    let email = emailOrObj;
+    let password = passwordArg;
+    let fullName = fullNameArg;
+
+    if (typeof emailOrObj === 'object' && emailOrObj !== null) {
+      email = emailOrObj.email;
+      password = emailOrObj.password;
+      fullName = emailOrObj.fullName || emailOrObj.full_name;
+    }
+
     const { data, error } = await supabase.auth.signUp({ 
       email, 
       password,

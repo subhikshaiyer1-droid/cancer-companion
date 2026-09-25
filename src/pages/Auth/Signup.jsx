@@ -9,6 +9,8 @@ export const Signup = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isRateLimit, setIsRateLimit] = useState(false);
+  const [isUserExists, setIsUserExists] = useState(false);
   const [loading, setLoading] = useState(false);
   
   const { register } = useAuth();
@@ -16,7 +18,11 @@ export const Signup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
     setError('');
+    setIsRateLimit(false);
+    setIsUserExists(false);
 
     if (password.length < 8) {
       return setError('Password must be at least 8 characters long.');
@@ -32,7 +38,22 @@ export const Signup = () => {
       await register(email, password, fullName);
       navigate('/onboarding');
     } catch (err) {
-      setError(err.message || 'Failed to create an account.');
+      const msg = err?.message || err?.error_description || '';
+      const code = err?.code || '';
+      const status = err?.status;
+
+      const isRateLimited = status === 429 || code === 'over_email_send_rate_limit' || code === 'rate_limit' || msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('security purposes');
+      const isExisting = code === 'user_already_exists' || msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists');
+
+      if (isRateLimited) {
+        setIsRateLimit(true);
+        setError('Supabase verification email rate limit reached. If you already signed up, please sign in below. Otherwise, please wait a few minutes before trying again.');
+      } else if (isExisting) {
+        setIsUserExists(true);
+        setError('An account with this email address already exists. Please sign in to your existing account.');
+      } else {
+        setError(msg || 'Failed to create an account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -57,9 +78,21 @@ export const Signup = () => {
           <form className="space-y-6" onSubmit={handleSubmit}>
             
             {error && (
-              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <p>{error}</p>
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm space-y-3">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">{error}</p>
+                </div>
+                {(isRateLimit || isUserExists) && (
+                  <div className="pt-2 flex flex-col gap-2">
+                    <Link
+                      to="/login"
+                      className="w-full text-center py-2 px-4 rounded-xl bg-sky-600 text-white font-semibold text-xs hover:bg-sky-700 transition-colors shadow-sm"
+                    >
+                      Sign In to Existing Account
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
@@ -71,9 +104,10 @@ export const Signup = () => {
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white"
+                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -86,9 +120,10 @@ export const Signup = () => {
                 <input
                   type="email"
                   required
+                  disabled={loading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white"
+                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -101,9 +136,10 @@ export const Signup = () => {
                 <input
                   type="password"
                   required
+                  disabled={loading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white"
+                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -116,9 +152,10 @@ export const Signup = () => {
                 <input
                   type="password"
                   required
+                  disabled={loading}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white"
+                  className="block w-full appearance-none rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 placeholder-slate-400 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-sky-500 sm:text-sm bg-white dark:bg-slate-800 dark:text-white disabled:opacity-60"
                 />
               </div>
             </div>
@@ -127,7 +164,7 @@ export const Signup = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex w-full justify-center items-center gap-2 rounded-xl border border-transparent bg-gradient-to-r from-sky-500 to-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:from-sky-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full justify-center items-center gap-2 rounded-xl border border-transparent bg-gradient-to-r from-sky-500 to-indigo-600 py-3 px-4 text-sm font-medium text-white shadow-sm hover:from-sky-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {loading ? 'Creating Account...' : 'Create Account'}
                 {!loading && <ArrowRight className="w-4 h-4" />}
