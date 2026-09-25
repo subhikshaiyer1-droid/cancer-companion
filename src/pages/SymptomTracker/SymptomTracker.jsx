@@ -32,54 +32,71 @@ export const SymptomTracker = () => {
   ];
 
   useEffect(() => {
-    if (!user) return;
     loadSymptoms();
   }, [user]);
 
   const loadSymptoms = async () => {
     setLoading(true);
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const activeUser = authData?.user || user;
+      if (!activeUser) {
+        setSymptoms([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('symptoms')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', activeUser.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setSymptoms(data || []);
     } catch (err) {
       console.error('Error loading symptoms:', err);
-      addToast('Error', 'Could not load symptoms', 'error');
+      const errMsg = err?.message || 'Could not load symptoms';
+      addToast('Error', errMsg, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSaveLog = async () => {
-    if (!user) return;
     try {
-      const { data, error } = await supabase
+      const { data: authData } = await supabase.auth.getUser();
+      const activeUser = authData?.user || user;
+
+      if (!activeUser) {
+        addToast('Authentication Required', 'Please sign in to save your symptom log.', 'error');
+        return;
+      }
+
+      const payload = {
+        user_id: activeUser.id,
+        date: new Date().toISOString().split('T')[0],
+        fatigue: Number(newLog.fatigue) || 0,
+        nausea: Number(newLog.nausea) || 0,
+        pain: Number(newLog.pain) || 0,
+        mood: newLog.mood || 'Okay',
+        notes: newLog.notes ? newLog.notes.trim() : ''
+      };
+
+      const { error } = await supabase
         .from('symptoms')
-        .insert([{
-          user_id: user.id,
-          date: new Date().toISOString().split('T')[0],
-          fatigue: newLog.fatigue,
-          nausea: newLog.nausea,
-          pain: newLog.pain,
-          mood: newLog.mood,
-          notes: newLog.notes
-        }])
-        .select();
+        .insert([payload]);
 
       if (error) throw error;
 
-      setSymptoms([data[0], ...symptoms]);
+      await loadSymptoms();
       setIsLogging(false);
       setNewLog({ fatigue: 5, nausea: 0, pain: 0, mood: 'Okay', notes: '' });
-      addToast('Success', 'Symptom log saved', 'success');
+      addToast('Success', 'Symptom log saved successfully', 'success');
     } catch (err) {
       console.error('Error saving symptom log:', err);
-      addToast('Error', 'Could not save symptom log', 'error');
+      const errMsg = err?.message || err?.error_description || 'Could not save symptom log';
+      addToast('Save Failed', errMsg, 'error');
     }
   };
 
