@@ -27,6 +27,9 @@ create table if not exists public.profiles (
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- Grant permissions to authenticated and anon roles to fix "permission denied" errors
+grant all on table public.profiles to anon, authenticated;
+
 alter table public.profiles enable row level security;
 
 -- Drop existing policies to allow clean re-running
@@ -74,6 +77,8 @@ create table if not exists public.medications (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+grant all on table public.medications to anon, authenticated;
+
 alter table public.medications enable row level security;
 
 drop policy if exists "Users can view own medications" on public.medications;
@@ -108,6 +113,8 @@ create table if not exists public.appointments (
   notes text,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+grant all on table public.appointments to anon, authenticated;
 
 alter table public.appointments enable row level security;
 
@@ -144,6 +151,8 @@ create table if not exists public.symptoms (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+grant all on table public.symptoms to anon, authenticated;
+
 alter table public.symptoms enable row level security;
 
 drop policy if exists "Users can view own symptoms" on public.symptoms;
@@ -179,6 +188,8 @@ create table if not exists public.wellness_logs (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+grant all on table public.wellness_logs to anon, authenticated;
+
 alter table public.wellness_logs enable row level security;
 
 drop policy if exists "Users can view own wellness" on public.wellness_logs;
@@ -197,3 +208,48 @@ create policy "Users can insert own wellness" on public.wellness_logs
 
 create policy "Users can delete own wellness" on public.wellness_logs
   for delete using ( auth.uid() = user_id );
+
+-- --------------------------------------------------------
+-- 6. Health Reports Table
+-- Stores metadata for uploaded lab results and scans
+-- --------------------------------------------------------
+create table if not exists public.health_reports (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  title text not null,
+  category text not null,
+  doctor text,
+  notes text,
+  date text not null,
+  file_type text,
+  file_size text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+grant all on table public.health_reports to anon, authenticated;
+
+alter table public.health_reports enable row level security;
+
+drop policy if exists "Users can view own health reports" on public.health_reports;
+drop policy if exists "Users can update own health reports" on public.health_reports;
+drop policy if exists "Users can insert own health reports" on public.health_reports;
+drop policy if exists "Users can delete own health reports" on public.health_reports;
+
+create policy "Users can view own health reports" on public.health_reports
+  for select using ( auth.uid() = user_id );
+
+create policy "Users can update own health reports" on public.health_reports
+  for update using ( auth.uid() = user_id );
+
+create policy "Users can insert own health reports" on public.health_reports
+  for insert with check ( auth.uid() = user_id );
+
+create policy "Users can delete own health reports" on public.health_reports
+  for delete using ( auth.uid() = user_id );
+
+-- ========================================================
+-- Schema Cache Reload
+-- Forces PostgREST to update its cache, fixing "Could not find table in schema cache" errors
+-- ========================================================
+NOTIFY pgrst, 'reload schema';
+

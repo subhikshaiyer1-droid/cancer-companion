@@ -1,222 +1,280 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
-import { Heart, Wind, Timer, BookOpen, Sparkles, Play, Pause, RotateCcw, Plus } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+import { Heart, Droplets, Moon, Activity, BookOpen, Plus, Calendar, Smile, Frown, Meh, Save } from 'lucide-react';
 
 export const MentalWellness = () => {
+  const { user } = useAuth();
   const { addToast } = useTheme();
 
-  // Affirmations Carousel
-  const affirmations = [
-    "My body is resilient, and every cell is supported in its healing journey.",
-    "I release worry for tomorrow and choose peace for this present moment.",
-    "Small steps taken with calm patience lead to grand recoveries.",
-    "I am surrounding myself with love, gentle care, and unwavering strength."
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Today's log entry
+  const [todayLog, setTodayLog] = useState({
+    water_glasses: 0,
+    sleep_hours: '',
+    exercise_minutes: '',
+    mood: 'Okay',
+    notes: ''
+  });
+
+  const moods = [
+    { label: 'Great', icon: Smile, color: 'text-emerald-500', bg: 'bg-emerald-100', border: 'border-emerald-200' },
+    { label: 'Okay', icon: Meh, color: 'text-sky-500', bg: 'bg-sky-100', border: 'border-sky-200' },
+    { label: 'Poor', icon: Frown, color: 'text-rose-500', bg: 'bg-rose-100', border: 'border-rose-200' }
   ];
-  const [affirmationIdx, setAffirmationIdx] = useState(0);
 
-  // Guided Breathing State (4-7-8 Technique)
-  const [isBreathingActive, setIsBreathingActive] = useState(false);
-  const [breathPhase, setBreathPhase] = useState('Inhale (4s)'); // 'Inhale' | 'Hold' | 'Exhale'
-  const [breathTimer, setBreathTimer] = useState(4);
-
-  // Meditation Timer State
-  const [meditationTimeLeft, setMeditationTimeLeft] = useState(300); // 5 mins default
-  const [isMeditationRunning, setIsMeditationRunning] = useState(false);
-
-  // Mood & Gratitude Journals
-  const [gratitudeList, setGratitudeList] = useState([]);
-  const [newGratitude, setNewGratitude] = useState('');
-
-  // Breathing Cycle effect
   useEffect(() => {
-    let interval = null;
-    if (isBreathingActive) {
-      interval = setInterval(() => {
-        setBreathTimer(prev => {
-          if (prev <= 1) {
-            if (breathPhase.startsWith('Inhale')) {
-              setBreathPhase('Hold (7s)');
-              return 7;
-            } else if (breathPhase.startsWith('Hold')) {
-              setBreathPhase('Exhale (8s)');
-              return 8;
-            } else {
-              setBreathPhase('Inhale (4s)');
-              return 4;
-            }
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      setBreathPhase('Inhale (4s)');
-      setBreathTimer(4);
-    }
-    return () => clearInterval(interval);
-  }, [isBreathingActive, breathPhase]);
+    if (!user) return;
+    loadWellnessLogs();
+  }, [user]);
 
-  // Meditation Timer effect
-  useEffect(() => {
-    let timer = null;
-    if (isMeditationRunning && meditationTimeLeft > 0) {
-      timer = setInterval(() => {
-        setMeditationTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (meditationTimeLeft === 0) {
-      setIsMeditationRunning(false);
-      addToast('Meditation Completed', 'Namaste. Take a soft deep breath as you return.', 'success');
-    }
-    return () => clearInterval(timer);
-  }, [isMeditationRunning, meditationTimeLeft]);
+  const loadWellnessLogs = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('wellness_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
 
-  const addGratitude = (e) => {
+      if (error) throw error;
+      setLogs(data || []);
+    } catch (err) {
+      console.error('Error loading wellness logs:', err);
+      addToast('Error', 'Could not load wellness history', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveLog = async (e) => {
     e.preventDefault();
-    if (!newGratitude.trim()) return;
-    setGratitudeList(prev => [newGratitude, ...prev]);
-    setNewGratitude('');
-    addToast('Gratitude Recorded', 'Your joyful thought has been saved to your journal.', 'success');
+    if (!user) {
+      addToast('Error', 'Please log in to save your wellness log', 'error');
+      return;
+    }
+
+    try {
+      const payload = {
+        user_id: user.id,
+        date: new Date().toISOString().split('T')[0],
+        water_glasses: parseInt(todayLog.water_glasses) || 0,
+        sleep_hours: parseFloat(todayLog.sleep_hours) || null,
+        exercise_minutes: parseInt(todayLog.exercise_minutes) || null,
+        mood: todayLog.mood,
+        notes: todayLog.notes
+      };
+
+      const { data, error } = await supabase
+        .from('wellness_logs')
+        .insert([payload])
+        .select();
+
+      if (error) throw error;
+
+      setLogs([data[0], ...logs]);
+      setTodayLog({ water_glasses: 0, sleep_hours: '', exercise_minutes: '', mood: 'Okay', notes: '' });
+      addToast('Success', 'Daily wellness log saved!', 'success');
+    } catch (err) {
+      console.error('Error saving wellness log:', err);
+      addToast('Error', 'Could not save wellness log', 'error');
+    }
   };
 
-  const formatMeditationTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 pb-12 animate-fade-in">
+    <div className="space-y-6 pb-12 animate-fade-in max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Heart className="w-8 h-8 text-purple-500" /> Mental Wellness & Mindfulness
+            <Heart className="w-8 h-8 text-purple-500" /> Mental Wellness & Daily Tracking
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Guided breathing exercises, meditation timers, daily affirmations & gratitude journals
+            Track daily water intake, sleep, exercise, and mood to maintain your well-being
           </p>
         </div>
       </div>
 
-      {/* Daily Affirmation Banner */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-purple-500/15 via-pink-500/15 to-indigo-500/15 border border-purple-200/50 dark:border-purple-800/30 glass-card text-center relative overflow-hidden">
-        <Sparkles className="w-6 h-6 text-purple-500 mx-auto mb-2 animate-bounce" />
-        <span className="text-[11px] font-extrabold uppercase tracking-widest text-purple-600 dark:text-purple-300 block mb-2">
-          Daily Healing Affirmation
-        </span>
-        <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 max-w-2xl mx-auto italic leading-relaxed">
-          "{affirmations[affirmationIdx]}"
-        </p>
+      {/* Logging Form */}
+      <div className="p-6 rounded-3xl glass-card border border-purple-100 dark:border-purple-900/30 shadow-pastel bg-white dark:bg-slate-900">
+        <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+          <Plus className="w-5 h-5 text-purple-500" />
+          Log Today's Wellness
+        </h2>
 
-        <div className="flex items-center justify-center gap-2 mt-4">
-          {affirmations.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setAffirmationIdx(idx)}
-              className={`w-2.5 h-2.5 rounded-full transition-all ${affirmationIdx === idx ? 'w-8 bg-purple-600' : 'bg-purple-200 dark:bg-purple-900'}`}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Grid: 4-7-8 Breathing Circle + Meditation Timer */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Guided Breathing Circle */}
-        <div className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel flex flex-col items-center justify-between text-center">
-          <div className="flex items-center gap-2 mb-2">
-            <Wind className="w-5 h-5 text-sky-500" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">4-7-8 Guided Breathing</h3>
-          </div>
-          <p className="text-xs text-slate-500 mb-6">Reduces nerve anxiety and relaxes muscle tension</p>
-
-          {/* Animated Breathing Circle */}
-          <div className="relative w-44 h-44 flex items-center justify-center mb-6">
-            <div className={`
-              w-36 h-36 rounded-full bg-gradient-to-tr from-sky-400 via-indigo-300 to-purple-400 opacity-80 flex items-center justify-center text-white font-extrabold shadow-2xl transition-all duration-1000
-              ${isBreathingActive ? (breathPhase.startsWith('Inhale') ? 'scale-125' : breathPhase.startsWith('Hold') ? 'scale-125 opacity-100' : 'scale-90') : 'scale-100'}
-            `}>
-              <div className="text-center">
-                <span className="text-2xl font-bold block">{breathTimer}s</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider">{breathPhase}</span>
+        <form onSubmit={handleSaveLog} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Water Glasses */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+              <label className="text-sm font-semibold flex items-center gap-2 mb-3">
+                <Droplets className="w-4 h-4 text-sky-500" />
+                Water Glasses
+              </label>
+              <div className="flex items-center gap-4">
+                <button type="button" onClick={() => setTodayLog(p => ({...p, water_glasses: Math.max(0, p.water_glasses - 1)}))} className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300">-</button>
+                <span className="text-xl font-bold w-8 text-center">{todayLog.water_glasses}</span>
+                <button type="button" onClick={() => setTodayLog(p => ({...p, water_glasses: p.water_glasses + 1}))} className="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold">+</button>
               </div>
             </div>
+
+            {/* Sleep Hours */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+              <label className="text-sm font-semibold flex items-center gap-2 mb-3">
+                <Moon className="w-4 h-4 text-indigo-500" />
+                Sleep Hours
+              </label>
+              <input 
+                type="number" step="0.5" min="0" max="24"
+                placeholder="e.g. 7.5"
+                value={todayLog.sleep_hours}
+                onChange={(e) => setTodayLog({...todayLog, sleep_hours: e.target.value})}
+                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              />
+            </div>
+
+            {/* Exercise Minutes */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+              <label className="text-sm font-semibold flex items-center gap-2 mb-3">
+                <Activity className="w-4 h-4 text-emerald-500" />
+                Exercise Minutes
+              </label>
+              <input 
+                type="number" min="0" step="5"
+                placeholder="e.g. 30"
+                value={todayLog.exercise_minutes}
+                onChange={(e) => setTodayLog({...todayLog, exercise_minutes: e.target.value})}
+                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+              />
+            </div>
+
           </div>
 
-          <button
-            onClick={() => setIsBreathingActive(!isBreathingActive)}
-            className={`w-full py-3 rounded-2xl font-semibold text-xs transition-all shadow-md ${
-              isBreathingActive
-                ? 'bg-rose-500 hover:bg-rose-600 text-white'
-                : 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/20'
-            }`}
-          >
-            {isBreathingActive ? 'Stop Breathing Exercise' : 'Start 4-7-8 Breathing'}
-          </button>
-        </div>
-
-        {/* Meditation Timer */}
-        <div className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel flex flex-col items-center justify-between text-center">
-          <div className="flex items-center gap-2 mb-2">
-            <Timer className="w-5 h-5 text-purple-500" />
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Meditation & Calm Timer</h3>
-          </div>
-          <p className="text-xs text-slate-500 mb-6">Mindful stillness & restorative music</p>
-
-          {/* Large Digital Timer */}
-          <div className="my-6">
-            <span className="text-5xl font-extrabold text-slate-800 dark:text-slate-100 tracking-wider">
-              {formatMeditationTime(meditationTimeLeft)}
-            </span>
+          {/* Mood */}
+          <div>
+            <label className="text-sm font-semibold mb-3 block">Overall Mood</label>
+            <div className="flex flex-wrap gap-4">
+              {moods.map((m) => (
+                <button
+                  type="button"
+                  key={m.label}
+                  onClick={() => setTodayLog({...todayLog, mood: m.label})}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 transition-all ${
+                    todayLog.mood === m.label 
+                    ? `${m.bg} ${m.border} ${m.color}`
+                    : 'border-slate-100 dark:border-slate-800 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <m.icon className="w-5 h-5" />
+                  <span className="font-medium text-sm">{m.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full">
+          {/* Notes */}
+          <div>
+            <label className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-slate-400" />
+              Journal / Notes
+            </label>
+            <textarea
+              value={todayLog.notes}
+              onChange={(e) => setTodayLog({...todayLog, notes: e.target.value})}
+              placeholder="What went well today? Any concerns?"
+              className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 resize-y"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
             <button
-              onClick={() => setIsMeditationRunning(!isMeditationRunning)}
-              className="flex-1 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-md flex items-center justify-center gap-2"
+              type="submit"
+              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-semibold text-sm transition-colors shadow-sm flex items-center gap-2"
             >
-              {isMeditationRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-              {isMeditationRunning ? 'Pause' : 'Start Meditation'}
-            </button>
-            <button
-              onClick={() => {
-                setIsMeditationRunning(false);
-                setMeditationTimeLeft(300);
-              }}
-              className="p-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 hover:bg-slate-100"
-            >
-              <RotateCcw className="w-4 h-4" />
+              <Save className="w-4 h-4" /> Save Wellness Log
             </button>
           </div>
-        </div>
+        </form>
       </div>
 
-      {/* Gratitude & Mood Journal */}
-      <div className="p-6 rounded-3xl glass-card border border-slate-200/80 dark:border-slate-800 shadow-pastel">
-        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-indigo-500" /> Gratitude & Mood Journal
+      {/* History */}
+      <div>
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 mt-8">
+          <Calendar className="w-5 h-5 text-slate-400" />
+          Previous Records
         </h3>
 
-        <form onSubmit={addGratitude} className="flex gap-2 mb-4">
-          <input
-            type="text"
-            placeholder="Write a small joyful moment or gratitude today..."
-            value={newGratitude}
-            onChange={(e) => setNewGratitude(e.target.value)}
-            className="flex-1 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs"
-          />
-          <button type="submit" className="px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1">
-            <Plus className="w-4 h-4" /> Log Journal
-          </button>
-        </form>
+        {logs.length > 0 ? (
+          <div className="space-y-4">
+            {logs.map((log) => {
+              const moodConfig = moods.find(m => m.label === log.mood) || moods[1];
+              const MoodIcon = moodConfig.icon;
+              const logDate = new Date(log.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-        <div className="space-y-2">
-          {gratitudeList.map((item, idx) => (
-            <div key={idx} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-xs text-slate-700 dark:text-slate-200 flex items-center gap-2">
-              <Heart className="w-4 h-4 text-purple-400 fill-purple-400 flex-shrink-0" />
-              <span>"{item}"</span>
-            </div>
-          ))}
-        </div>
+              return (
+                <div key={log.id} className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    
+                    <div className="flex-1">
+                      <p className="text-xs font-semibold text-slate-400 mb-2">{logDate}</p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className={`p-1.5 rounded-lg ${moodConfig.bg} ${moodConfig.color}`}>
+                          <MoodIcon className="w-4 h-4" />
+                        </div>
+                        <span className="font-semibold text-sm">{log.mood}</span>
+                      </div>
+                      {log.notes && (
+                        <p className="text-sm text-slate-600 dark:text-slate-300 italic bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl">
+                          "{log.notes}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-4 sm:gap-6 pt-2 md:pt-0">
+                      <div className="text-center bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl min-w-[80px]">
+                        <Droplets className="w-5 h-5 text-sky-500 mx-auto mb-1" />
+                        <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{log.water_glasses}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Glasses</div>
+                      </div>
+                      <div className="text-center bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl min-w-[80px]">
+                        <Moon className="w-5 h-5 text-indigo-500 mx-auto mb-1" />
+                        <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{log.sleep_hours || '-'}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Hours</div>
+                      </div>
+                      <div className="text-center bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl min-w-[80px]">
+                        <Activity className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+                        <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{log.exercise_minutes || '-'}</div>
+                        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Minutes</div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-12 px-4 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+            <Heart className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">No Wellness Logs</h3>
+            <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+              You haven't logged your daily wellness yet. Tracking these metrics helps you and your care team see patterns over time.
+            </p>
+          </div>
+        )}
       </div>
+
     </div>
   );
 };

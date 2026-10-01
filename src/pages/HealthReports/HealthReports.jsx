@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { supabase } from '../../lib/supabase';
 import { FileText, UploadCloud, Download, Image as ImageIcon, Eye, Calendar, Tag, Plus, Check } from 'lucide-react';
 
 export const HealthReports = () => {
+  const { user } = useAuth();
   const { addToast } = useTheme();
 
   const [reports, setReports] = useState([]);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [loading, setLoading] = useState(true);
 
   const [newReport, setNewReport] = useState({
     title: '',
     category: 'Blood Work',
-    doctor: 'Dr. Sarah Lin',
+    doctor: '',
     notes: ''
   });
 
@@ -22,26 +26,72 @@ export const HealthReports = () => {
     ? reports
     : reports.filter(r => r.category === selectedCategory);
 
-  const handleUpload = (e) => {
+  useEffect(() => {
+    if (!user) return;
+    loadReports();
+  }, [user]);
+
+  const loadReports = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('health_reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setReports(data || []);
+    } catch (err) {
+      console.error('Error loading reports:', err);
+      addToast('Error', 'Could not load health reports', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async (e) => {
     e.preventDefault();
     if (!newReport.title) return;
 
-    const reportToAdd = {
-      id: 'rep-' + Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      fileType: 'pdf',
-      fileSize: '1.5 MB',
-      ...newReport
-    };
+    try {
+      const { data, error } = await supabase
+        .from('health_reports')
+        .insert([{
+          user_id: user.id,
+          title: newReport.title,
+          category: newReport.category,
+          doctor: newReport.doctor || null,
+          notes: newReport.notes || null,
+          date: new Date().toISOString().split('T')[0],
+          file_type: 'pdf',
+          file_size: '1.5 MB'
+        }])
+        .select();
 
-    setReports(prev => [reportToAdd, ...prev]);
-    setShowUploadModal(false);
-    addToast('Report Uploaded', `${reportToAdd.title} saved securely under ${reportToAdd.category}.`, 'success');
+      if (error) throw error;
+
+      setReports([data[0], ...reports]);
+      setShowUploadModal(false);
+      setNewReport({ title: '', category: 'Blood Work', doctor: '', notes: '' });
+      addToast('Report Uploaded', `${data[0].title} saved securely under ${data[0].category}.`, 'success');
+    } catch (err) {
+      console.error('Error uploading report:', err);
+      addToast('Error', 'Could not upload report', 'error');
+    }
   };
 
   const simulateDownload = (title) => {
     addToast('Downloading File', `Starting secure download for ${title}...`, 'info');
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
@@ -92,7 +142,7 @@ export const HealthReports = () => {
               <div>
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="p-3 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600">
-                    {report.fileType === 'image' ? <ImageIcon className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                    {report.file_type === 'image' ? <ImageIcon className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
                   </div>
                   <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     {report.category}
@@ -100,7 +150,7 @@ export const HealthReports = () => {
                 </div>
 
                 <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-snug">{report.title}</h3>
-                <p className="text-xs text-slate-500 mt-1">Provider: {report.doctor}</p>
+                {report.doctor && <p className="text-xs text-slate-500 mt-1">Provider: {report.doctor}</p>}
 
                 {report.notes && (
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
@@ -110,7 +160,7 @@ export const HealthReports = () => {
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                <span className="text-[11px] text-slate-400 font-medium">📅 {report.date} • {report.fileSize}</span>
+                <span className="text-[11px] text-slate-400 font-medium">📅 {report.date} • {report.file_size}</span>
 
                 <div className="flex items-center gap-2">
                   <button
@@ -169,6 +219,27 @@ export const HealthReports = () => {
                   <option>Pathology</option>
                   <option>Prescriptions</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Provider / Doctor</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dr. Sarah Lin"
+                  value={newReport.doctor}
+                  onChange={(e) => setNewReport({ ...newReport, doctor: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Notes</label>
+                <textarea
+                  placeholder="Add any notes..."
+                  value={newReport.notes}
+                  onChange={(e) => setNewReport({ ...newReport, notes: e.target.value })}
+                  className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                />
               </div>
 
               {/* Simulated File Upload Drag Area */}
