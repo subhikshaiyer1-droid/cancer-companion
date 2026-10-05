@@ -205,7 +205,9 @@ The goal is to make the user feel that they are talking with a calm, intelligent
           
           // Fallback if the content is completely empty
           if (!finalContent) {
-            finalContent = "I'm here to help, but I couldn't generate a proper response. Please try asking again.";
+            // Diagnostic output when content is empty
+            const safeResponse = JSON.stringify(response, null, 2).replace(new RegExp(openRouterApiKey || 'hidden', 'g'), '[API_KEY_REDACTED]');
+            finalContent = `Diagnostic: API returned 200 OK but content was empty after stripping metadata.\n\nRaw Response:\n${safeResponse}`;
           }
           
           const aiMsg = {
@@ -216,7 +218,9 @@ The goal is to make the user feel that they are talking with a calm, intelligent
           };
           setMessages(prev => [...prev, aiMsg]);
         } else {
-          throw new Error('No content in response');
+          // If choices array is missing or empty
+          const safeResponse = JSON.stringify(response || {}).replace(new RegExp(openRouterApiKey || 'hidden', 'g'), '[API_KEY_REDACTED]');
+          throw new Error(`Invalid response format (no choices): ${safeResponse}`);
         }
       } catch (error) {
         if ((error.message === 'TIMEOUT' || error?.status === 503 || error?.status === 429) && retries < maxRetries) {
@@ -225,15 +229,9 @@ The goal is to make the user feel that they are talking with a calm, intelligent
         } else {
           console.error("OpenRouter API Error:", error);
           
-          let errorMessage = "I'm having trouble connecting to my services right now. Please try again in a moment.";
-          
-          if (error.message === 'TIMEOUT') {
-            errorMessage = "The response is taking longer than expected. Please try again.";
-          } else if (error?.status === 503 || error?.status === 429) {
-            errorMessage = "The AI service is temporarily busy. Please try again in a moment.";
-          } else if (error?.status === 401 || error?.status === 403) {
-            errorMessage = "The AI service is not authorized right now. Please check the AI configuration.";
-          }
+          // Generate a safe diagnostic message for the UI
+          const safeErrorMsg = (error.message || "Unknown error").replace(new RegExp(openRouterApiKey || 'hidden', 'g'), '[API_KEY_REDACTED]');
+          let errorMessage = `Diagnostic Error: OpenRouter request failed.\nStatus: ${error?.status || 'Network/Parsing'}\nMessage: ${safeErrorMsg}`;
 
           const aiMsg = {
             id: Date.now() + 1,
