@@ -12,10 +12,7 @@ import {
   Sparkles,
   RefreshCw
 } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+const openRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
 
 export const AIAssistant = () => {
   const { speakText, addToast } = useTheme();
@@ -88,9 +85,9 @@ export const AIAssistant = () => {
     e?.preventDefault();
     if (!inputText.trim() || loading) return;
 
-    if (!apiKey || !ai) {
+    if (!openRouterApiKey) {
       if (addToast) {
-        addToast("Gemini API key is missing. Please add VITE_GEMINI_API_KEY to your .env file.", "error");
+        addToast("OpenRouter API key is missing. Please add VITE_OPENROUTER_API_KEY to your .env file.", "error");
       }
       return;
     }
@@ -107,12 +104,11 @@ export const AIAssistant = () => {
     setInputText('');
     setLoading(true);
 
-    const conversationText = [
-      ...messages.slice(1).map((m) =>
-        `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`
-      ),
-      `User: ${messageToSend}`
-    ].join('\n\n');
+    const messagesPayload = messages.slice(1).map((m) => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text
+    }));
+    messagesPayload.push({ role: 'user', content: messageToSend });
 
     let retries = 0;
     const maxRetries = 2;
@@ -120,38 +116,129 @@ export const AIAssistant = () => {
     const makeApiCall = async () => {
       try {
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT')), 15000);
+          setTimeout(() => reject(new Error('TIMEOUT')), 30000);
         });
 
-        const apiPromise = ai.interactions.create({
-          model: 'gemini-3.8-flash',
-          system_instruction: 'You are a Cancer Companion AI, designed to offer empathetic support, explain medical terms, and help users prepare questions for their doctors. Keep your responses calm, supportive, clear, and relatively brief (1-3 paragraphs). Do not diagnose, prescribe, or replace a doctor.',
-          input: conversationText
+        const systemInstruction = `You are Cancer Companion, a warm, intelligent, empathetic conversational AI assistant.
+
+Your primary purpose is to provide helpful conversation, emotional support, health education, and general assistance.
+
+You are NOT a restricted FAQ bot.
+
+Answer the user's actual question rather than limiting responses to predefined cancer topics.
+
+You can discuss:
+- cancer
+- treatments
+- chemotherapy
+- radiation
+- surgery
+- medications in general educational terms
+- medical terminology
+- symptoms in general educational terms
+- appointments
+- questions to ask doctors
+- treatment preparation
+- emotional wellbeing
+- anxiety
+- fear
+- loneliness
+- stress
+- coping
+- motivation
+- everyday conversation
+- general educational questions
+- normal casual conversation
+
+If the user is emotionally distressed, respond with empathy first.
+If the user says they are scared, sad, lonely, anxious, overwhelmed, or upset, acknowledge their feelings and provide supportive conversation.
+Do not immediately respond with a generic medical disclaimer unless it is actually relevant.
+If the user asks a normal everyday question unrelated to cancer, answer it normally.
+If the user wants to have a casual conversation, converse naturally.
+If the user asks a follow-up question, use the conversation context to understand what they mean.
+
+Keep answers understandable and human.
+Do not make every response excessively long.
+Do not repeatedly say that you are an AI.
+Do not pretend to be a doctor.
+Do not diagnose the user.
+Do not prescribe medication.
+Do not invent medical records or patient information.
+
+For medical questions, provide general educational information and encourage consultation with an appropriate healthcare professional when personalized medical advice is required.
+For urgent or potentially life-threatening symptoms, clearly advise the user to contact emergency services or their healthcare team.
+
+The goal is to make the user feel that they are talking with a calm, intelligent, supportive companion.`;
+
+        const apiPromise = fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${openRouterApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            "model": "openrouter/free",
+            "messages": [
+              { "role": "system", "content": systemInstruction },
+              ...messagesPayload
+            ]
+          })
+        }).then(async res => {
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            const err = new Error(errorData.error?.message || 'API request failed');
+            err.status = res.status;
+            throw err;
+          }
+          return res.json();
         });
 
         const response = await Promise.race([apiPromise, timeoutPromise]);
         
-        if (response && response.output_text) {
+        let finalContent = "";
+        
+        if (response && response.choices && response.choices.length > 0) {
+          let rawContent = response.choices[0].message?.content || "";
+          
+          // Strip OpenRouter/Llama guard safety tags or metadata if prepended
+          finalContent = rawContent.replace(/^(User Safety:.*|Response Safety:.*|Reasoning:.*|Provider:.*|Usage:.*)$/gmi, '').trim();
+          
+          // Fallback if the content is completely empty
+          if (!finalContent) {
+            finalContent = "I'm here to help, but I couldn't generate a proper response. Please try asking again.";
+          }
+          
           const aiMsg = {
             id: Date.now() + 1,
             sender: 'ai',
-            text: response.output_text,
+            text: finalContent,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
           setMessages(prev => [...prev, aiMsg]);
         } else {
-          throw new Error('No output_text in response');
+          throw new Error('No content in response');
         }
       } catch (error) {
-        if ((error.message === 'TIMEOUT' || error?.status === 503) && retries < maxRetries) {
+        if ((error.message === 'TIMEOUT' || error?.status === 503 || error?.status === 429) && retries < maxRetries) {
           retries++;
           await makeApiCall();
         } else {
-          console.error("Gemini API Error:", error);
+          console.error("OpenRouter API Error:", error);
+          
+          let errorMessage = "I'm having trouble connecting to my services right now. Please try again in a moment.";
+          
+          if (error.message === 'TIMEOUT') {
+            errorMessage = "The response is taking longer than expected. Please try again.";
+          } else if (error?.status === 503 || error?.status === 429) {
+            errorMessage = "The AI service is temporarily busy. Please try again in a moment.";
+          } else if (error?.status === 401 || error?.status === 403) {
+            errorMessage = "The AI service is not authorized right now. Please check the AI configuration.";
+          }
+
           const aiMsg = {
             id: Date.now() + 1,
             sender: 'ai',
-            text: "I'm having trouble connecting to my knowledge base right now. Please try again in a moment.",
+            text: errorMessage,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
           setMessages(prev => [...prev, aiMsg]);
