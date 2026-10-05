@@ -1,2 +1,7 @@
 node_modules
 *.timestamp-*.mjs
+.env
+.env.local
+.env
+.env.*
+dist/

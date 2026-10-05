@@ -12,6 +12,10 @@ import {
   Sparkles,
   RefreshCw
 } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
+
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const AIAssistant = () => {
   const { speakText, addToast } = useTheme();
@@ -84,34 +88,82 @@ export const AIAssistant = () => {
     e?.preventDefault();
     if (!inputText.trim() || loading) return;
 
-    const userMsg = { id: Date.now(), sender: 'user', text: inputText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+    if (!apiKey || !ai) {
+      if (addToast) {
+        addToast("Gemini API key is missing. Please add VITE_GEMINI_API_KEY to your .env file.", "error");
+      }
+      return;
+    }
+
+    const messageToSend = inputText.trim();
+    const userMsg = { 
+      id: Date.now(), 
+      sender: 'user', 
+      text: messageToSend, 
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+    };
+    
     setMessages(prev => [...prev, userMsg]);
-    const messageToSend = inputText;
     setInputText('');
     setLoading(true);
 
-    setTimeout(() => {
-      let responseText = "I am here to support you in your health journey. Remember to rest, stay hydrated, track any new symptoms, and contact your care team for medical guidance.";
-      const lower = messageToSend.toLowerCase();
+    const conversationText = [
+      ...messages.slice(1).map((m) =>
+        `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`
+      ),
+      `User: ${messageToSend}`
+    ].join('\n\n');
 
-      if (lower.includes('side effect') || lower.includes('nausea') || lower.includes('pain') || lower.includes('fatigue')) {
-        responseText = "Managing symptoms and side effects is vital. Keep track of when symptoms occur using the Symptom Tracker, rest as needed, stay hydrated, and reach out to your doctor if symptoms worsen or if you develop a fever.";
-      } else if (lower.includes('doctor') || lower.includes('appointment') || lower.includes('ask')) {
-        responseText = "Preparing questions before your doctor's appointment helps ensure you get the clarity you need. You can use the 'Questions to Ask Doctor' panel to pick relevant topics!";
-      } else if (lower.includes('hello') || lower.includes('hi') || lower.includes('hey')) {
-        responseText = "Hello! How can I assist you with your health companion tracking or questions today?";
+    let retries = 0;
+    const maxRetries = 2;
+
+    const makeApiCall = async () => {
+      try {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('TIMEOUT')), 15000);
+        });
+
+        const apiPromise = ai.interactions.create({
+          model: 'gemini-3.8-flash',
+          system_instruction: 'You are a Cancer Companion AI, designed to offer empathetic support, explain medical terms, and help users prepare questions for their doctors. Keep your responses calm, supportive, clear, and relatively brief (1-3 paragraphs). Do not diagnose, prescribe, or replace a doctor.',
+          input: conversationText
+        });
+
+        const response = await Promise.race([apiPromise, timeoutPromise]);
+        
+        if (response && response.output_text) {
+          const aiMsg = {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: response.output_text,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, aiMsg]);
+        } else {
+          throw new Error('No output_text in response');
+        }
+      } catch (error) {
+        if ((error.message === 'TIMEOUT' || error?.status === 503) && retries < maxRetries) {
+          retries++;
+          await makeApiCall();
+        } else {
+          console.error("Gemini API Error:", error);
+          const aiMsg = {
+            id: Date.now() + 1,
+            sender: 'ai',
+            text: "I'm having trouble connecting to my knowledge base right now. Please try again in a moment.",
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, aiMsg]);
+        }
       }
+    };
 
-      const aiMsg = {
-        id: Date.now() + 1,
-        sender: 'ai',
-        text: responseText,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-
-      setMessages(prev => [...prev, aiMsg]);
+    try {
+      await makeApiCall();
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   const explainTerm = () => {
