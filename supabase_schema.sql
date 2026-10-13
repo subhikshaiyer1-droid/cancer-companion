@@ -223,8 +223,18 @@ create table if not exists public.health_reports (
   date text not null,
   file_type text,
   file_size text,
+  extracted_text text,
+  analysis_data jsonb,
+  document_type text,
+  patient_context jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
+
+-- Idempotent column additions for existing deployments
+alter table public.health_reports add column if not exists extracted_text text;
+alter table public.health_reports add column if not exists analysis_data jsonb;
+alter table public.health_reports add column if not exists document_type text;
+alter table public.health_reports add column if not exists patient_context jsonb;
 
 grant all on table public.health_reports to anon, authenticated;
 
